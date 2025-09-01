@@ -8,8 +8,13 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 class DocumentService:
+    # Class-level search index to ensure it's shared across all instances
+    _search_index = None
+    
     def __init__(self):
-        self.search_index = SearchIndex()
+        if DocumentService._search_index is None:
+            DocumentService._search_index = SearchIndex()
+        self.search_index = DocumentService._search_index
         self.file_processor = FileProcessor()
     
     def create_document(self, db: Session, document_data: DocumentCreate, file) -> Document:

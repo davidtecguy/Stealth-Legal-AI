@@ -35,6 +35,8 @@ class SearchIndex:
     """In-memory inverted index for document search."""
     
     def __init__(self):
+        import uuid
+        self.instance_id = str(uuid.uuid4())[:8]
         self.index: Dict[str, Dict[int, List[int]]] = {}
         self.documents: Dict[int, Dict[str, Any]] = {}
         self.stop_words = {
@@ -43,6 +45,7 @@ class SearchIndex:
             'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
             'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'
         }
+        print(f"SearchIndex created with ID: {self.instance_id}")
     
     def add_document(self, doc_id: int, title: str, content: str, file_type: str, filename: str = ""):
         """Add a document to the search index."""

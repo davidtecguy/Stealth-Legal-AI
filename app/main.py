@@ -13,6 +13,7 @@ from app.schemas import (
 )
 from app.services.document_service import DocumentService
 from app.services.llm_service import LLMService
+from app.models import SearchIndex
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -32,8 +33,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Create a global search index
+global_search_index = SearchIndex()
+
 # Initialize services
 document_service = DocumentService()
+# Override the document service search index with our global one
+document_service.search_index = global_search_index
 llm_service = LLMService()
 
 @app.on_event("startup")
@@ -339,3 +345,13 @@ async def reindex_documents(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documents/search-status")
+async def get_search_status():
+    """Get search index status for debugging."""
+    return {
+        "indexed_documents": document_service.search_index.get_document_count(),
+        "search_index_keys": len(document_service.search_index.index),
+        "document_ids": list(document_service.search_index.documents.keys()),
+        "search_index_id": document_service.search_index.instance_id
+    }
