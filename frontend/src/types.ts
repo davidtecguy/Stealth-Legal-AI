@@ -43,11 +43,10 @@ export interface SearchResult {
 }
 
 export interface SearchResponse {
-  query: string;
   results: SearchResult[];
-  total_results: number;
-  page: number;
-  page_size: number;
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ErrorResponse {

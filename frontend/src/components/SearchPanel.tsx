@@ -39,7 +39,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         : await apiService.searchDocuments(query, limit, searchOffset);
 
       setResults(response.results);
-      setTotal(response.total_results);
+      setTotal(response.total);
       setOffset(searchOffset);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
