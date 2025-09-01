@@ -92,25 +92,36 @@ class LLMService:
         if not self.enabled:
             return self._fallback_analysis(content, start_time)
         
-        system_message = """You are a legal AI assistant. Analyze the provided legal document and extract:
-1. Key legal terms and clauses
-2. Potential legal risks
-3. Document type and category
-4. Summary of main points
-5. Recommendations for improvement
+        system_message = """You are an expert legal AI assistant specializing in contract analysis. Your role is to provide clear, structured, and actionable legal insights. 
 
-Provide your analysis in a structured, professional manner."""
+IMPORTANT: Structure your response as a JSON object with the following exact format:
+{
+  "key_terms": ["term1", "term2", "term3"],
+  "risks": ["risk1", "risk2", "risk3"],
+  "document_type": "specific document type",
+  "summary": "concise 2-3 sentence summary",
+  "recommendations": ["specific actionable recommendation 1", "specific actionable recommendation 2"]
+}
+
+Guidelines:
+- Be specific and actionable in recommendations
+- Identify concrete legal risks, not generic ones
+- Use clear, professional language
+- Focus on practical legal implications
+- Keep summaries concise but comprehensive"""
         
-        prompt = f"""Please analyze this legal document:
+        prompt = f"""Analyze this legal document and provide structured insights:
 
-{content[:3000]}...
+{content[:4000]}
 
-Provide a comprehensive analysis covering:
-- Key legal terms identified
-- Potential risks or concerns
-- Document classification
-- Summary of main provisions
-- Recommendations for improvement"""
+Please provide a JSON response with:
+1. KEY TERMS: List 5-8 most important legal terms/clauses
+2. RISKS: Identify 3-5 specific legal risks or potential issues
+3. DOCUMENT TYPE: Classify the specific type of legal document
+4. SUMMARY: 2-3 sentence overview of the document's purpose and key provisions
+5. RECOMMENDATIONS: 3-5 specific, actionable recommendations for improvement
+
+Focus on practical legal implications and actionable insights."""
         
         response = self._call_openai(prompt, system_message)
         
@@ -277,44 +288,78 @@ Please rank these documents by relevance to the search query, considering semant
     # Fallback methods when LLM is not available
     def _fallback_analysis(self, content: str, start_time: float) -> Dict[str, Any]:
         """Fallback document analysis using rule-based approach"""
+        import time
         processing_time = time.time() - start_time
+        
+        # Extract key terms and risks
+        key_terms = self._extract_terms_rule_based(content)
+        risks = self._identify_risks_rule_based(content)
+        doc_type = self._classify_document_rule_based(content)
+        
+        # Create structured summary
+        summary = f"This is a {doc_type.lower()} document. "
+        if "agreement" in content.lower() or "contract" in content.lower():
+            summary += "The document establishes terms and conditions between parties. "
+        if "payment" in content.lower():
+            summary += "It includes payment terms and obligations. "
+        if "termination" in content.lower():
+            summary += "The document contains termination provisions."
+        
+        # Create specific recommendations based on content analysis
+        recommendations = []
+        if not any(word in content.lower() for word in ["payment", "compensation", "fee"]):
+            recommendations.append("Add clear payment terms and compensation structure")
+        if not any(word in content.lower() for word in ["termination", "expiration", "end"]):
+            recommendations.append("Include termination clause with clear conditions")
+        if not any(word in content.lower() for word in ["liability", "indemnification", "damages"]):
+            recommendations.append("Add liability and indemnification provisions")
+        if not any(word in content.lower() for word in ["dispute", "arbitration", "mediation"]):
+            recommendations.append("Include dispute resolution mechanism")
+        if not recommendations:
+            recommendations = ["Consider legal review for compliance", "Ensure all terms are clearly defined"]
         
         return {
             "analysis": {
-                "key_terms": self._extract_terms_rule_based(content),
-                "risks": self._identify_risks_rule_based(content),
-                "document_type": self._classify_document_rule_based(content),
-                "summary": content[:200] + "..." if len(content) > 200 else content,
-                "recommendations": ["Consider legal review", "Ensure clarity", "Check consistency"],
+                "key_terms": key_terms,
+                "risks": risks,
+                "document_type": doc_type,
+                "summary": summary.strip(),
+                "recommendations": recommendations,
                 "source": "rule_based"
             },
             "suggestions": [
                 {
                     "type": "clarity",
-                    "suggestion": "Consider using more precise legal language",
+                    "suggestion": "Use precise legal language throughout the document",
                     "example": "Use 'shall' instead of 'will' for obligations",
                     "source": "rule_based"
                 },
                 {
                     "type": "structure",
-                    "suggestion": "Organize clauses in logical order",
-                    "example": "Group related terms together",
+                    "suggestion": "Organize clauses in logical order for better readability",
+                    "example": "Group related terms and conditions together",
+                    "source": "rule_based"
+                },
+                {
+                    "type": "completeness",
+                    "suggestion": "Ensure all essential legal elements are included",
+                    "example": "Add missing termination, payment, and liability clauses",
                     "source": "rule_based"
                 }
             ],
             "terms": [
                 {
-                    "term": "Contract",
-                    "meaning": "A legally binding agreement between parties",
-                    "context": "Found in document",
-                    "implications": "Creates legal obligations",
+                    "term": term,
+                    "meaning": f"Important legal term found in {doc_type.lower()}",
+                    "context": "Document analysis",
+                    "implications": "Key for legal compliance and enforcement",
                     "source": "rule_based"
-                }
+                } for term in key_terms[:5]  # Limit to top 5 terms
             ],
             "classification": {
-                "document_type": self._classify_document_rule_based(content),
+                "document_type": doc_type,
                 "category": "legal",
-                "complexity": "medium",
+                "complexity": "high" if len(risks) > 3 else "medium",
                 "confidence": 0.7,
                 "source": "rule_based"
             },
@@ -420,68 +465,74 @@ Please rank these documents by relevance to the search query, considering semant
     def _parse_analysis_response(self, response: str, content: str, start_time: float) -> Dict[str, Any]:
         """Parse LLM analysis response"""
         import time
+        import json
+        import re
         processing_time = time.time() - start_time
         
         try:
-            # Try to extract structured information
-            return {
-                "analysis": {
-                    "key_terms": self._extract_terms_rule_based(content),
-                    "risks": self._identify_risks_rule_based(content),
-                    "document_type": self._classify_document_rule_based(content),
-                    "summary": response[:500] + "..." if len(response) > 500 else response,
-                    "recommendations": ["Review LLM analysis", "Consider legal consultation", "Verify accuracy"],
-                    "source": "llm"
-                },
-                "suggestions": [
-                    {
-                        "type": "llm_analysis",
-                        "suggestion": response,
-                        "example": "LLM-generated analysis",
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                parsed_data = json.loads(json_str)
+                
+                # Extract structured data
+                key_terms = parsed_data.get('key_terms', [])
+                risks = parsed_data.get('risks', [])
+                document_type = parsed_data.get('document_type', 'Unknown')
+                summary = parsed_data.get('summary', 'No summary provided')
+                recommendations = parsed_data.get('recommendations', [])
+                
+                # Create structured suggestions from recommendations
+                suggestions = []
+                for i, rec in enumerate(recommendations):
+                    suggestions.append({
+                        "type": "improvement",
+                        "suggestion": rec,
+                        "example": f"Recommendation {i+1}",
                         "source": "llm"
-                    }
-                ],
-                "terms": [
-                    {
-                        "term": "LLM Analysis",
-                        "meaning": response,
-                        "context": "Full document analysis",
-                        "implications": "Comprehensive legal review",
+                    })
+                
+                # Create structured terms from key terms
+                terms = []
+                for term in key_terms:
+                    terms.append({
+                        "term": term,
+                        "meaning": f"Key legal term identified in document",
+                        "context": "Document analysis",
+                        "implications": "Important for legal compliance",
                         "source": "llm"
-                    }
-                ],
-                "classification": {
-                    "document_type": self._classify_document_rule_based(content),
-                    "category": "legal",
-                    "complexity": "medium",
-                    "confidence": 0.8,
-                    "source": "llm"
-                },
-                "llm_enabled": True,
-                "processing_time": processing_time
-            }
-        except:
-            return {
-                "analysis": {
-                    "key_terms": [],
-                    "risks": [],
-                    "document_type": "unknown",
-                    "summary": response,
-                    "recommendations": ["Review analysis"],
-                    "source": "llm"
-                },
-                "suggestions": [],
-                "terms": [],
-                "classification": {
-                    "document_type": "unknown",
-                    "category": "legal",
-                    "complexity": "unknown",
-                    "confidence": 0.5,
-                    "source": "llm"
-                },
-                "llm_enabled": True,
-                "processing_time": processing_time
-            }
+                    })
+                
+                return {
+                    "analysis": {
+                        "key_terms": key_terms,
+                        "risks": risks,
+                        "document_type": document_type,
+                        "summary": summary,
+                        "recommendations": recommendations,
+                        "source": "llm"
+                    },
+                    "suggestions": suggestions,
+                    "terms": terms,
+                    "classification": {
+                        "document_type": document_type,
+                        "category": "legal",
+                        "complexity": "medium" if len(risks) < 3 else "high",
+                        "confidence": 0.9,
+                        "source": "llm"
+                    },
+                    "llm_enabled": True,
+                    "processing_time": processing_time
+                }
+            else:
+                # Fallback if JSON parsing fails
+                return self._fallback_analysis(content, start_time)
+                
+        except (json.JSONDecodeError, KeyError, Exception) as e:
+            logger.error(f"Failed to parse LLM response: {e}")
+            # Fallback to rule-based analysis
+            return self._fallback_analysis(content, start_time)
     
     def _parse_suggestions_response(self, response: str) -> List[Dict[str, str]]:
         """Parse LLM suggestions response"""
