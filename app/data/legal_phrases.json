@@ -1,0 +1,54 @@
+{
+  "standard_phrases": {
+    "introduction": [
+      "This agreement is made and entered into as of [DATE] by and between [PARTY A] and [PARTY B].",
+      "This contract is entered into on [DATE] between [PARTY A] and [PARTY B].",
+      "This agreement is made as of [DATE] between [PARTY A] and [PARTY B]."
+    ],
+    "definitions": [
+      "For purposes of this agreement, the following terms shall have the meanings set forth below:",
+      "The following terms used in this agreement shall have the meanings specified:",
+      "As used in this agreement, the following terms shall mean:"
+    ],
+    "governing_law": [
+      "This agreement shall be governed by and construed in accordance with the laws of [JURISDICTION].",
+      "This contract is governed by the laws of [JURISDICTION].",
+      "The laws of [JURISDICTION] shall govern this agreement."
+    ],
+    "jurisdiction": [
+      "Any disputes arising under this agreement shall be subject to the exclusive jurisdiction of the courts of [JURISDICTION].",
+      "The parties agree to submit to the jurisdiction of the courts of [JURISDICTION].",
+      "All disputes shall be resolved in the courts of [JURISDICTION]."
+    ],
+    "entire_agreement": [
+      "This agreement constitutes the entire understanding between the parties and supersedes all prior agreements.",
+      "This contract contains the complete agreement between the parties.",
+      "This agreement represents the full and complete understanding between the parties."
+    ],
+    "amendment": [
+      "This agreement may only be amended in writing signed by both parties.",
+      "No modification of this agreement shall be effective unless in writing.",
+      "This contract may be amended only by written agreement of both parties."
+    ],
+    "severability": [
+      "If any provision of this agreement is held to be invalid, the remaining provisions shall continue in full force and effect.",
+      "Should any part of this agreement be declared invalid, the remainder shall remain in effect.",
+      "The invalidity of any provision shall not affect the validity of the remaining provisions."
+    ],
+    "force_majeure": [
+      "Neither party shall be liable for any delay or failure to perform due to circumstances beyond their reasonable control.",
+      "Force majeure events shall excuse performance under this agreement.",
+      "Neither party shall be responsible for delays caused by events beyond their control."
+    ],
+    "termination": [
+      "Either party may terminate this agreement upon [X] days written notice.",
+      "This agreement may be terminated by either party with [X] days notice.",
+      "Either party may terminate this contract by providing [X] days written notice."
+    ],
+    "confidentiality": [
+      "Each party agrees to maintain the confidentiality of all information received from the other party.",
+      "The parties shall keep confidential all proprietary information disclosed under this agreement.",
+      "Confidential information shall not be disclosed to third parties without prior written consent."
+    ]
+  }
+}
