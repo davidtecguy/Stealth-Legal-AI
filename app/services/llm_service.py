@@ -84,10 +84,13 @@ class LLMService:
             content: Document content to analyze
             
         Returns:
-            Dictionary with analysis results
+            Dictionary with analysis results in LLMAnalysisResponse format
         """
+        import time
+        start_time = time.time()
+        
         if not self.enabled:
-            return self._fallback_analysis(content)
+            return self._fallback_analysis(content, start_time)
         
         system_message = """You are a legal AI assistant. Analyze the provided legal document and extract:
 1. Key legal terms and clauses
@@ -112,9 +115,9 @@ Provide a comprehensive analysis covering:
         response = self._call_openai(prompt, system_message)
         
         if response:
-            return self._parse_analysis_response(response)
+            return self._parse_analysis_response(response, content, start_time)
         else:
-            return self._fallback_analysis(content)
+            return self._fallback_analysis(content, start_time)
     
     def suggest_improvements(self, content: str) -> List[Dict[str, str]]:
         """
@@ -272,14 +275,51 @@ Please rank these documents by relevance to the search query, considering semant
             return self._fallback_semantic_search(query, documents)
     
     # Fallback methods when LLM is not available
-    def _fallback_analysis(self, content: str) -> Dict[str, Any]:
+    def _fallback_analysis(self, content: str, start_time: float) -> Dict[str, Any]:
         """Fallback document analysis using rule-based approach"""
+        processing_time = time.time() - start_time
+        
         return {
-            "key_terms": self._extract_terms_rule_based(content),
-            "risks": self._identify_risks_rule_based(content),
-            "document_type": self._classify_document_rule_based(content),
-            "summary": content[:200] + "..." if len(content) > 200 else content,
-            "recommendations": ["Consider legal review", "Ensure clarity", "Check consistency"]
+            "analysis": {
+                "key_terms": self._extract_terms_rule_based(content),
+                "risks": self._identify_risks_rule_based(content),
+                "document_type": self._classify_document_rule_based(content),
+                "summary": content[:200] + "..." if len(content) > 200 else content,
+                "recommendations": ["Consider legal review", "Ensure clarity", "Check consistency"],
+                "source": "rule_based"
+            },
+            "suggestions": [
+                {
+                    "type": "clarity",
+                    "suggestion": "Consider using more precise legal language",
+                    "example": "Use 'shall' instead of 'will' for obligations",
+                    "source": "rule_based"
+                },
+                {
+                    "type": "structure",
+                    "suggestion": "Organize clauses in logical order",
+                    "example": "Group related terms together",
+                    "source": "rule_based"
+                }
+            ],
+            "terms": [
+                {
+                    "term": "Contract",
+                    "meaning": "A legally binding agreement between parties",
+                    "context": "Found in document",
+                    "implications": "Creates legal obligations",
+                    "source": "rule_based"
+                }
+            ],
+            "classification": {
+                "document_type": self._classify_document_rule_based(content),
+                "category": "legal",
+                "complexity": "medium",
+                "confidence": 0.7,
+                "source": "rule_based"
+            },
+            "llm_enabled": False,
+            "processing_time": processing_time
         }
     
     def _fallback_suggestions(self, content: str) -> List[Dict[str, str]]:
@@ -377,20 +417,70 @@ Please rank these documents by relevance to the search query, considering semant
         return "legal document"
     
     # Response parsing methods
-    def _parse_analysis_response(self, response: str) -> Dict[str, Any]:
+    def _parse_analysis_response(self, response: str, content: str, start_time: float) -> Dict[str, Any]:
         """Parse LLM analysis response"""
+        import time
+        processing_time = time.time() - start_time
+        
         try:
             # Try to extract structured information
             return {
-                "analysis": response,
-                "parsed": True,
-                "source": "llm"
+                "analysis": {
+                    "key_terms": self._extract_terms_rule_based(content),
+                    "risks": self._identify_risks_rule_based(content),
+                    "document_type": self._classify_document_rule_based(content),
+                    "summary": response[:500] + "..." if len(response) > 500 else response,
+                    "recommendations": ["Review LLM analysis", "Consider legal consultation", "Verify accuracy"],
+                    "source": "llm"
+                },
+                "suggestions": [
+                    {
+                        "type": "llm_analysis",
+                        "suggestion": response,
+                        "example": "LLM-generated analysis",
+                        "source": "llm"
+                    }
+                ],
+                "terms": [
+                    {
+                        "term": "LLM Analysis",
+                        "meaning": response,
+                        "context": "Full document analysis",
+                        "implications": "Comprehensive legal review",
+                        "source": "llm"
+                    }
+                ],
+                "classification": {
+                    "document_type": self._classify_document_rule_based(content),
+                    "category": "legal",
+                    "complexity": "medium",
+                    "confidence": 0.8,
+                    "source": "llm"
+                },
+                "llm_enabled": True,
+                "processing_time": processing_time
             }
         except:
             return {
-                "analysis": response,
-                "parsed": False,
-                "source": "llm"
+                "analysis": {
+                    "key_terms": [],
+                    "risks": [],
+                    "document_type": "unknown",
+                    "summary": response,
+                    "recommendations": ["Review analysis"],
+                    "source": "llm"
+                },
+                "suggestions": [],
+                "terms": [],
+                "classification": {
+                    "document_type": "unknown",
+                    "category": "legal",
+                    "complexity": "unknown",
+                    "confidence": 0.5,
+                    "source": "llm"
+                },
+                "llm_enabled": True,
+                "processing_time": processing_time
             }
     
     def _parse_suggestions_response(self, response: str) -> List[Dict[str, str]]:
