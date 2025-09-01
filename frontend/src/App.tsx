@@ -61,8 +61,8 @@ function App() {
   };
 
   const handleNewDocument = () => {
-    setSelectedDocument(null);
-    setActiveTab("editor");
+    // Refresh documents list instead of switching tabs
+    fetchDocuments();
   };
 
   return (
