@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Document } from './types';
 import { apiService } from './services/api';
 import { 
-  BrainIcon, 
+  CpuChipIcon, 
   DocumentIcon, 
   MagnifyingGlassIcon, 
   PencilIcon 
@@ -72,19 +72,19 @@ function App() {
         <Tabs defaultValue="documents" className="w-full">
                       <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="documents" className="flex items-center gap-2">
-                <FaFileAlt className="h-4 w-4" />
+                <DocumentIcon className="h-4 w-4" />
                 Documents
               </TabsTrigger>
               <TabsTrigger value="editor" className="flex items-center gap-2">
-                <FaEdit className="h-4 w-4" />
+                <PencilIcon className="h-4 w-4" />
                 Editor
               </TabsTrigger>
               <TabsTrigger value="search" className="flex items-center gap-2">
-                <FaSearch className="h-4 w-4" />
+                <MagnifyingGlassIcon className="h-4 w-4" />
                 Search
               </TabsTrigger>
               <TabsTrigger value="ai-analysis" className="flex items-center gap-2">
-                <FaBrain className="h-4 w-4" />
+                <CpuChipIcon className="h-4 w-4" />
                 AI Analysis
               </TabsTrigger>
             </TabsList>
@@ -119,7 +119,7 @@ function App() {
               />
             ) : (
               <div className="text-center py-12">
-                <FaBrain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <CpuChipIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Select a Document for AI Analysis
                 </h3>

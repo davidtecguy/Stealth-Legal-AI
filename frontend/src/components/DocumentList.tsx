@@ -4,7 +4,14 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Document } from '../types';
 import { apiService } from '../services/api';
-import { FaFileAlt, FaPlus, FaTrash, FaEdit, FaSearch, FaSync } from 'react-icons/fa';
+import { 
+  DocumentIcon, 
+  PlusIcon, 
+  TrashIcon, 
+  PencilIcon, 
+  MagnifyingGlassIcon, 
+  ArrowPathIcon 
+} from '@heroicons/react/24/outline';
 import { formatDate, truncateText } from '../lib/utils';
 
 interface DocumentListProps {
@@ -72,15 +79,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <FaFileAlt className="h-5 w-5" />
+            <DocumentIcon className="h-5 w-5" />
             Documents
           </CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-              <FaSync className="h-4 w-4" />
+              <ArrowPathIcon className="h-4 w-4" />
             </Button>
             <Button size="sm" onClick={onNewDocument}>
-              <FaPlus className="h-4 w-4 mr-2" />
+              <PlusIcon className="h-4 w-4 mr-2" />
               New
             </Button>
           </div>
@@ -88,7 +95,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -105,7 +112,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
         {filteredDocuments.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <FaFileAlt className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
             {searchTerm ? (
               <p>No documents match your search</p>
             ) : (
@@ -116,7 +123,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   className="mt-2"
                   onClick={onNewDocument}
                 >
-                  <FaPlus className="h-4 w-4 mr-2" />
+                  <PlusIcon className="h-4 w-4 mr-2" />
                   Create your first document
                 </Button>
               </div>
@@ -159,7 +166,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         handleDocumentClick(document);
                       }}
                     >
-                      <FaEdit className="h-4 w-4" />
+                      <PencilIcon className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -169,7 +176,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         handleDeleteDocument(document.id);
                       }}
                     >
-                      <FaTrash className="h-4 w-4" />
+                      <TrashIcon className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

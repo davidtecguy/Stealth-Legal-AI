@@ -6,7 +6,12 @@ import { Textarea } from './ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Document, ChangeOperation } from '../types';
 import { apiService } from '../services/api';
-import { FaFileAlt, FaEdit, FaSave, FaSync } from 'react-icons/fa';
+import { 
+  DocumentIcon, 
+  PencilIcon, 
+  DocumentArrowDownIcon, 
+  ArrowPathIcon 
+} from '@heroicons/react/24/outline';
 
 interface DocumentEditorProps {
   selectedDocument: Document | null;
@@ -145,7 +150,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FaFileAlt className="h-5 w-5" />
+            <DocumentIcon className="h-5 w-5" />
             {document ? 'Edit Document' : 'Create New Document'}
           </CardTitle>
         </CardHeader>
@@ -178,7 +183,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
           <div className="flex gap-2">
             <Button onClick={handleSave} disabled={loading}>
-              <FaSave className="h-4 w-4 mr-2" />
+              <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
               {document ? 'Update' : 'Create'}
             </Button>
             {document && (
@@ -187,7 +192,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 setTitle(selectedDocument?.title || '');
                 setContent(selectedDocument?.content || '');
               }}>
-                <FaSync className="h-4 w-4 mr-2" />
+                <ArrowPathIcon className="h-4 w-4 mr-2" />
                 Reload
               </Button>
             )}
@@ -199,7 +204,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FaEdit className="h-5 w-5" />
+              <PencilIcon className="h-5 w-5" />
               Apply Changes (Redlining)
             </CardTitle>
           </CardHeader>
@@ -283,7 +288,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               disabled={loading || (!targetText && !useRange) || !replacementText}
               className="mt-4"
             >
-              <FaEdit className="h-4 w-4 mr-2" />
+              <PencilIcon className="h-4 w-4 mr-2" />
               Apply Change
             </Button>
           </CardContent>

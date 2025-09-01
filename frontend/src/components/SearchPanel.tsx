@@ -4,7 +4,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { SearchResult } from '../types';
 import { apiService } from '../services/api';
-import { FaSearch, FaFileAlt, FaExternalLinkAlt } from 'react-icons/fa';
+import { 
+  MagnifyingGlassIcon, 
+  DocumentIcon, 
+  ArrowTopRightOnSquareIcon 
+} from '@heroicons/react/24/outline';
 
 interface SearchPanelProps {
   documentId?: number;
@@ -80,7 +84,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FaSearch className="h-5 w-5" />
+          <MagnifyingGlassIcon className="h-5 w-5" />
           {documentId ? 'Search in Document' : 'Search All Documents'}
         </CardTitle>
       </CardHeader>
@@ -93,7 +97,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             className="flex-1"
           />
           <Button type="submit" disabled={loading || !query.trim()}>
-            <FaSearch className="h-4 w-4 mr-2" />
+            <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
             Search
           </Button>
         </form>
@@ -123,7 +127,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <FaFileAlt className="h-4 w-4 text-muted-foreground" />
+                        <DocumentIcon className="h-4 w-4 text-muted-foreground" />
                         <h4 className="font-medium">{result.title}</h4>
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                           Score: {result.relevance_score}
@@ -146,7 +150,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                         onClick={() => onDocumentSelect(result.id)}
                         className="ml-2"
                       >
-                        <FaExternalLinkAlt className="h-4 w-4" />
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
@@ -182,7 +186,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
         {!loading && results.length === 0 && query && !error && (
           <div className="text-center py-8 text-muted-foreground">
-            <FaSearch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <MagnifyingGlassIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No results found for "{query}"</p>
           </div>
         )}

@@ -5,16 +5,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 
 import { 
-  FaBrain, 
-  FaFileAlt, 
-  FaExclamationTriangle, 
-  FaLightbulb, 
-  FaClock, 
-  FaBolt,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaInfoCircle
-} from 'react-icons/fa';
+  CpuChipIcon, 
+  DocumentIcon, 
+  ExclamationTriangleIcon, 
+  LightBulbIcon, 
+  ClockIcon, 
+  BoltIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  InformationCircleIcon
+} from '@heroicons/react/24/outline';
 import { 
   LLMAnalysisResponse, 
   DocumentAnalysis, 
@@ -69,8 +69,8 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
   };
 
   const getStatusIcon = () => {
-    if (!llmStatus) return <FaInfoCircle className="h-4 w-4" />;
-    return llmStatus.enabled ? <FaCheckCircle className="h-4 w-4 text-green-500" /> : <FaTimesCircle className="h-4 w-4 text-red-500" />;
+    if (!llmStatus) return <InformationCircleIcon className="h-4 w-4" />;
+    return llmStatus.enabled ? <CheckCircleIcon className="h-4 w-4 text-green-500" /> : <XCircleIcon className="h-4 w-4 text-red-500" />;
   };
 
   const getStatusColor = () => {
@@ -83,7 +83,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FaBrain className="h-5 w-5" />
+            <CpuChipIcon className="h-5 w-5" />
             LLM Legal AI Analysis
           </CardTitle>
           <CardDescription>
@@ -98,7 +98,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FaBrain className="h-5 w-5" />
+          <CpuChipIcon className="h-5 w-5" />
           LLM Legal AI Analysis
         </CardTitle>
         <CardDescription>
@@ -114,11 +114,11 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
           {llmStatus.enabled && (
             <>
               <Badge variant="outline">
-                                    <FaBolt className="h-3 w-3 mr-1" />
+                                    <BoltIcon className="h-3 w-3 mr-1" />
                 {llmStatus.model}
               </Badge>
               <Badge variant="outline">
-                                    <FaClock className="h-3 w-3 mr-1" />
+                                    <ClockIcon className="h-3 w-3 mr-1" />
                 {llmStatus.max_tokens} tokens
               </Badge>
             </>
@@ -129,7 +129,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
       <CardContent>
         {!llmStatus.enabled ? (
           <div className="text-center py-8">
-                            <FaTimesCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                            <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">LLM Service Unavailable</h3>
             <p className="text-gray-600 mb-4">
               OpenAI API key not configured. LLM features are disabled.
@@ -148,12 +148,12 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
               >
                 {loading ? (
                   <>
-                    <FaClock className="h-4 w-4 mr-2 animate-spin" />
+                    <ClockIcon className="h-4 w-4 mr-2 animate-spin" />
                     Analyzing Document...
                   </>
                 ) : (
                   <>
-                    <FaBrain className="h-4 w-4 mr-2" />
+                    <CpuChipIcon className="h-4 w-4 mr-2" />
                     Run AI Analysis
                   </>
                 )}
@@ -163,7 +163,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
             {error && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-center gap-2 text-red-800">
-                  <FaExclamationTriangle className="h-4 w-4" />
+                  <ExclamationTriangleIcon className="h-4 w-4" />
                   <span className="font-medium">Analysis Error</span>
                 </div>
                 <p className="text-red-700 mt-1">{error}</p>
@@ -261,7 +261,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <FaExclamationTriangle className="h-4 w-4 text-orange-500" />
+                        <ExclamationTriangleIcon className="h-4 w-4 text-orange-500" />
                         Identified Risks
                       </CardTitle>
                     </CardHeader>
@@ -269,7 +269,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
                       <div className="space-y-3">
                         {analysis.analysis.risks.map((risk, index) => (
                           <div key={index} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
-                            <FaExclamationTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                            <ExclamationTriangleIcon className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
                             <span className="text-orange-800">{risk}</span>
                           </div>
                         ))}
@@ -284,7 +284,7 @@ export const LLMAnalysis: React.FC<LLMAnalysisProps> = ({
                       <Card key={index}>
                         <CardHeader>
                           <CardTitle className="text-sm font-medium flex items-center gap-2">
-                            <FaLightbulb className="h-4 w-4 text-yellow-500" />
+                            <LightBulbIcon className="h-4 w-4 text-yellow-500" />
                             {suggestion.type.charAt(0).toUpperCase() + suggestion.type.slice(1)} Improvement
                           </CardTitle>
                         </CardHeader>
