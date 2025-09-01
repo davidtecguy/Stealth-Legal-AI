@@ -50,6 +50,20 @@ class ApiService {
     });
   }
 
+  async uploadDocument(formData: FormData): Promise<Document> {
+    const response = await fetch(`${this.baseUrl}/documents/upload`, {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getDocuments(skip = 0, limit = 100): Promise<Document[]> {
     return this.request<Document[]>(`/documents?skip=${skip}&limit=${limit}`);
   }
