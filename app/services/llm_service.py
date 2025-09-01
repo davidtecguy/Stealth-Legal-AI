@@ -258,12 +258,17 @@ Determine:
         if not self.enabled:
             return self._fallback_semantic_search(query, documents)
         
-        system_message = """You are a legal search specialist. Analyze the search query and rank documents by relevance. Consider:
-1. Semantic meaning
-2. Legal concepts
-3. Context relevance
-4. Term matching
-5. Document type relevance"""
+        system_message = """You are a legal search specialist. Analyze the search query and rank documents by relevance. 
+
+IMPORTANT: Your response should list the document IDs in order of relevance, like this:
+"Most relevant documents: ID: 1, ID: 3, ID: 2"
+
+Consider:
+1. Semantic meaning and legal concepts
+2. Context relevance to the query
+3. Document type and legal category
+4. Term matching and legal terminology
+5. Overall legal significance"""
         
         # Create document summaries for analysis
         doc_summaries = []
@@ -271,12 +276,14 @@ Determine:
             summary = f"ID: {doc.get('id')}, Title: {doc.get('title')}, Content: {doc.get('content', '')[:500]}..."
             doc_summaries.append(summary)
         
-        prompt = f"""Search Query: {query}
+        prompt = f"""Search Query: "{query}"
 
 Available Documents:
 {chr(10).join(doc_summaries)}
 
-Please rank these documents by relevance to the search query, considering semantic meaning and legal context."""
+Please analyze the search query and rank the documents by relevance. Consider semantic meaning, legal concepts, and context relevance.
+
+Respond with: "Most relevant documents: ID: [number], ID: [number], ID: [number]" in order of relevance."""
         
         response = self._call_openai(prompt, system_message)
         
@@ -596,15 +603,41 @@ Please rank these documents by relevance to the search query, considering semant
     
     def _parse_semantic_search_response(self, response: str, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Parse LLM semantic search response"""
-        # For now, return documents with LLM analysis
-        return [
-            {
-                **doc,
-                "llm_analysis": response,
-                "search_method": "llm_semantic"
-            }
-            for doc in documents[:5]  # Limit results
-        ]
+        try:
+            # Try to extract document IDs from the response
+            import re
+            doc_ids = re.findall(r'ID:\s*(\d+)', response)
+            
+            if doc_ids:
+                # Return documents in the order mentioned by LLM
+                results = []
+                for doc_id in doc_ids:
+                    doc_id = int(doc_id)
+                    for doc in documents:
+                        if doc.get('id') == doc_id:
+                            results.append({
+                                **doc,
+                                "relevance_score": 0.9 - (len(results) * 0.1),  # Decreasing relevance
+                                "search_method": "llm_semantic",
+                                "llm_analysis": response
+                            })
+                            break
+                return results[:5]  # Limit to top 5
+            else:
+                # Fallback: return all documents with LLM analysis
+                return [
+                    {
+                        **doc,
+                        "relevance_score": 0.8,
+                        "search_method": "llm_semantic",
+                        "llm_analysis": response
+                    }
+                    for doc in documents[:5]
+                ]
+        except Exception as e:
+            logger.error(f"Failed to parse semantic search response: {e}")
+            # Fallback to keyword search
+            return self._fallback_semantic_search("", documents)
 
     def get_status(self) -> Dict[str, Any]:
         """Get LLM service status and configuration."""
