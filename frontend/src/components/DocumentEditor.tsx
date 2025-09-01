@@ -53,10 +53,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
 
   const handleSave = async () => {
+    if (!title.trim() || !content.trim()) {
+      setError('Title and content are required');
+      return;
+    }
+
+    setLoading(true);
+    
     if (!document) {
       // Create new document
       try {
-        setLoading(true);
         const newDoc = await apiService.createDocument({ title, content });
         setDocument(newDoc);
         onDocumentCreated(newDoc);
@@ -67,12 +73,19 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         setLoading(false);
       }
     } else {
-      // Update existing document
+      // Update existing document - create a change operation for title/content update
       try {
         setLoading(true);
+        
+        // Create a change operation to update the entire document
+        const change: ChangeOperation = {
+          operation: 'replace',
+          replacement: content
+        };
+        
         const updatedDoc = await apiService.updateDocument(
           document.id,
-          { operations: [], min_length: 0, max_length: 1000000 }, // No changes, just update title/content
+          { changes: [change] },
           document.etag
         );
         setDocument(updatedDoc);
@@ -95,16 +108,25 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     try {
       setLoading(true);
       
-      const change: ChangeOperation = {
-        type: 'replace_text',
-        changes: useRange 
-          ? [{ start_position: startPos, end_position: endPos, new_text: replacementText }]
-          : [{ target_text: targetText, occurrence, new_text: replacementText }]
-      };
+      let change: ChangeOperation;
+      
+      if (useRange) {
+        change = {
+          operation: 'replace',
+          range: { start: startPos, end: endPos },
+          replacement: replacementText
+        };
+      } else {
+        change = {
+          operation: 'replace',
+          target: { text: targetText, occurrence },
+          replacement: replacementText
+        };
+      }
 
       const updatedDoc = await apiService.updateDocument(
         document.id,
-        { operations: [change], min_length: 0, max_length: 1000000 },
+        { changes: [change] },
         document.etag
       );
 

@@ -14,26 +14,24 @@ export interface DocumentCreate {
 }
 
 export interface ChangeTarget {
-  target_text: string;
+  text: string;
   occurrence: number;
-  new_text: string;
 }
 
 export interface ChangeRange {
-  start_position: number;
-  end_position: number;
-  new_text: string;
+  start: number;
+  end: number;
 }
 
 export interface ChangeOperation {
-  type: 'replace_text' | 'replace_range';
-  changes: ChangeTarget[] | ChangeRange[];
+  operation: string;
+  target?: ChangeTarget;
+  range?: ChangeRange;
+  replacement: string;
 }
 
 export interface DocumentChanges {
-  operations: ChangeOperation[];
-  min_length: number;
-  max_length: number;
+  changes: ChangeOperation[];
 }
 
 export interface SearchResult {

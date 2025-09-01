@@ -18,8 +18,8 @@ interface DocumentListProps {
   documents: Document[];
   onDocumentSelect: (document: Document) => void;
   onDocumentDeleted: (documentId: number) => void;
+  onNewDocument: () => void;
   loading: boolean;
-  onNewDocument?: () => void;
   selectedDocumentId?: number;
 }
 

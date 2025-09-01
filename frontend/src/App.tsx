@@ -17,6 +17,7 @@ function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("documents");
 
   useEffect(() => {
     fetchDocuments();
@@ -35,8 +36,9 @@ function App() {
   };
 
   const handleDocumentCreated = (newDocument: Document) => {
-    setDocuments(prev => [...prev, newDocument]);
+    setDocuments(prev => [newDocument, ...prev]);
     setSelectedDocument(newDocument);
+    setActiveTab("documents"); // Switch back to documents tab to show the new document
   };
 
   const handleDocumentUpdated = (updatedDocument: Document) => {
@@ -55,6 +57,12 @@ function App() {
 
   const handleDocumentSelect = (document: Document) => {
     setSelectedDocument(document);
+    setActiveTab("editor"); // Automatically switch to editor tab
+  };
+
+  const handleNewDocument = () => {
+    setSelectedDocument(null);
+    setActiveTab("editor");
   };
 
   return (
@@ -69,7 +77,7 @@ function App() {
           </p>
         </div>
 
-        <Tabs defaultValue="documents" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                       <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="documents" className="flex items-center gap-2">
                 <DocumentIcon className="h-4 w-4" />
@@ -94,6 +102,7 @@ function App() {
               documents={documents}
               onDocumentSelect={handleDocumentSelect}
               onDocumentDeleted={handleDocumentDeleted}
+              onNewDocument={handleNewDocument}
               loading={loading}
             />
           </TabsContent>
