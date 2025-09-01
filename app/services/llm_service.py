@@ -464,3 +464,15 @@ Please rank these documents by relevance to the search query, considering semant
             }
             for doc in documents[:5]  # Limit results
         ]
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get LLM service status and configuration."""
+        return {
+            "enabled": self.enabled,
+            "model": self.model if self.enabled else None,
+            "max_tokens": self.max_tokens if self.enabled else None,
+            "temperature": self.temperature if self.enabled else None,
+            "api_key_configured": bool(self.api_key),
+            "legal_terms_loaded": len(self.legal_terms) > 0,
+            "legal_phrases_loaded": len(self.legal_phrases) > 0
+        }

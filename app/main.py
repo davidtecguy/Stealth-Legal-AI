@@ -98,49 +98,6 @@ async def list_documents(
     """List all documents with pagination."""
     return document_service.get_documents(db, skip, limit)
 
-@app.get("/documents/{document_id}", response_model=DocumentResponse)
-async def get_document(
-    document_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get a specific document by ID."""
-    document = document_service.get_document(db, document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return document
-
-@app.get("/documents/{document_id}/metadata", response_model=DocumentMetadata)
-async def get_document_metadata(
-    document_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get detailed metadata for a document."""
-    metadata = document_service.get_document_metadata(db, document_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return metadata
-
-@app.get("/documents/{document_id}/download")
-async def download_document(
-    document_id: int,
-    db: Session = Depends(get_db)
-):
-    """Download a document file."""
-    document = document_service.get_document(db, document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    if not os.path.exists(document.file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    
-    # Return file for download
-    from fastapi.responses import FileResponse
-    return FileResponse(
-        path=document.file_path,
-        filename=document.filename,
-        media_type=document_service.get_supported_file_types().get(document.file_type, 'application/octet-stream')
-    )
-
 # Search endpoints (must come before document_id routes)
 @app.get("/documents/search", response_model=SearchResponse)
 async def search_documents(
@@ -199,6 +156,49 @@ async def semantic_search_documents(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documents/{document_id}", response_model=DocumentResponse)
+async def get_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific document by ID."""
+    document = document_service.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
+
+@app.get("/documents/{document_id}/metadata", response_model=DocumentMetadata)
+async def get_document_metadata(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get detailed metadata for a document."""
+    metadata = document_service.get_document_metadata(db, document_id)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return metadata
+
+@app.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Download a document file."""
+    document = document_service.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if not os.path.exists(document.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    # Return file for download
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        path=document.file_path,
+        filename=document.filename,
+        media_type=document_service.get_supported_file_types().get(document.file_type, 'application/octet-stream')
+    )
 
 @app.patch("/documents/{document_id}", response_model=DocumentResponse)
 async def update_document(

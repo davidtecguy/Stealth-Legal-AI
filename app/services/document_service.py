@@ -147,8 +147,13 @@ class DocumentService:
         # Sort changes by position (for range-based changes)
         range_changes = [c for c in changes if c.range]
         text_changes = [c for c in changes if c.target]
+        full_replacements = [c for c in changes if c.operation == 'replace' and not c.range and not c.target]
         
-        # Apply range-based changes first (they affect positions)
+        # Apply full document replacements first
+        for change in full_replacements:
+            content = change.replacement
+        
+        # Apply range-based changes (they affect positions)
         for change in sorted(range_changes, key=lambda x: x.range.start, reverse=True):
             if change.range and change.range.start < change.range.end <= len(content):
                 content = content[:change.range.start] + change.replacement + content[change.range.end:]
