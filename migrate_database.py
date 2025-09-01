@@ -49,7 +49,7 @@ def migrate_database():
                 title TEXT NOT NULL,
                 filename TEXT NOT NULL,
                 file_path TEXT NOT NULL,
-                file_type TEXT NOT NULL,
+                file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'doc')),
                 file_size INTEGER NOT NULL,
                 content TEXT,
                 content_hash TEXT,
@@ -71,9 +71,9 @@ def migrate_database():
             doc_id, title, content, etag, created_at, updated_at = doc
             
             # Generate filename and file path for existing text documents
-            filename = f"document_{doc_id}.txt"
+            filename = f"document_{doc_id}.doc"
             file_path = f"uploads/migrated_{filename}"
-            file_type = "txt"
+            file_type = "doc"
             file_size = len(content.encode('utf-8')) if content else 0
             content_hash = hashlib.md5(content.encode()).hexdigest() if content else None
             
@@ -84,11 +84,14 @@ def migrate_database():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (doc_id, title, filename, file_path, file_type, file_size, content, content_hash, etag, created_at, updated_at))
             
-            # Create physical file for migrated documents
+            # Create physical file for migrated documents (as DOC format)
             uploads_dir = Path("uploads")
             uploads_dir.mkdir(exist_ok=True)
             
+            # Create a simple DOC-like file structure
             with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(f"Document: {title}\n")
+                f.write("=" * 50 + "\n\n")
                 f.write(content or "")
         
         # Drop old table and rename new one

@@ -9,7 +9,7 @@ from app.models import Base, Document
 from app.schemas import (
     DocumentCreate, DocumentResponse, DocumentChanges, SearchResponse,
     SemanticSearchResponse, LLMAnalysisResponse, DocumentImprovementResponse,
-    DocumentClassification, LegalTerm, FileUploadResponse, DocumentMetadata
+    DocumentImprovementRequest, DocumentClassification, LegalTerm, FileUploadResponse, DocumentMetadata
 )
 from app.services.document_service import DocumentService
 from app.services.llm_service import LLMService
@@ -72,7 +72,7 @@ async def upload_document(
         if file_extension not in supported_types:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Unsupported file type. Supported types: {', '.join(supported_types.keys())}"
+                detail=f"Unsupported file type. Only PDF and DOC files are allowed. Received: {file_extension}"
             )
         
         # Create document from file upload

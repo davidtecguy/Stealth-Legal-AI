@@ -12,9 +12,7 @@ class FileProcessor:
     
     SUPPORTED_TYPES = {
         'pdf': 'application/pdf',
-        'doc': 'application/msword',
-        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'txt': 'text/plain'
+        'doc': 'application/msword'
     }
     
     def __init__(self, upload_dir: str = "uploads"):
@@ -59,12 +57,8 @@ class FileProcessor:
         try:
             if file_type == 'pdf':
                 return self._extract_pdf_text(file_path)
-            elif file_type == 'docx':
-                return self._extract_docx_text(file_path)
             elif file_type == 'doc':
                 return self._extract_doc_text(file_path)
-            elif file_type == 'txt':
-                return self._extract_txt_text(file_path)
             else:
                 return None
         except Exception as e:
@@ -80,14 +74,6 @@ class FileProcessor:
                 text += page.extract_text() + "\n"
         return text.strip()
     
-    def _extract_docx_text(self, file_path: str) -> str:
-        """Extract text from DOCX file."""
-        doc = DocxDocument(file_path)
-        text = ""
-        for paragraph in doc.paragraphs:
-            text += paragraph.text + "\n"
-        return text.strip()
-    
     def _extract_doc_text(self, file_path: str) -> str:
         """Extract text from DOC file using antiword or similar tool."""
         # Note: This requires antiword to be installed on the system
@@ -101,11 +87,6 @@ class FileProcessor:
                 return f"[DOC file - text extraction not available: {result.stderr}]"
         except (ImportError, FileNotFoundError):
             return "[DOC file - antiword not available for text extraction]"
-    
-    def _extract_txt_text(self, file_path: str) -> str:
-        """Extract text from plain text file."""
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return file.read()
     
     def _get_file_extension(self, filename: str) -> str:
         """Get file extension from filename."""
@@ -125,8 +106,6 @@ class FileProcessor:
         try:
             if file_path.lower().endswith('.pdf'):
                 metadata.update(self._get_pdf_metadata(file_path))
-            elif file_path.lower().endswith('.docx'):
-                metadata.update(self._get_docx_metadata(file_path))
         except Exception as e:
             print(f"Error getting metadata from {file_path}: {e}")
         
@@ -144,18 +123,6 @@ class FileProcessor:
                     metadata['modified_date'] = pdf_reader.metadata.get('/ModDate')
         except Exception as e:
             print(f"Error extracting PDF metadata: {e}")
-        
-        return metadata
-    
-    def _get_docx_metadata(self, file_path: str) -> Dict[str, Any]:
-        """Extract metadata from DOCX file."""
-        metadata = {}
-        try:
-            doc = DocxDocument(file_path)
-            metadata['page_count'] = len(doc.sections)  # Approximate
-            metadata['word_count'] = sum(len(paragraph.text.split()) for paragraph in doc.paragraphs)
-        except Exception as e:
-            print(f"Error extracting DOCX metadata: {e}")
         
         return metadata
     

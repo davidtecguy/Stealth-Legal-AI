@@ -6,7 +6,7 @@ import os
 class DocumentBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     filename: str = Field(..., min_length=1, max_length=255)
-    file_type: str = Field(..., description="File type (pdf, doc, docx, txt)")
+    file_type: str = Field(..., description="File type (pdf, doc)")
 
 class DocumentCreate(DocumentBase):
     pass

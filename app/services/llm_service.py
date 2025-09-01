@@ -35,7 +35,7 @@ class LLMService:
         
         # Initialize OpenAI client
         if self.api_key:
-            openai.api_key = self.api_key
+            self.client = openai.OpenAI(api_key=self.api_key)
             self.enabled = True
             logger.info("LLM service initialized with OpenAI")
         else:
@@ -63,7 +63,7 @@ class LLMService:
                 messages.append({"role": "system", "content": system_message})
             messages.append({"role": "user", "content": prompt})
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
