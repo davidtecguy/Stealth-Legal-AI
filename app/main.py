@@ -13,7 +13,7 @@ from app.schemas import (
 )
 from app.services.document_service import DocumentService
 from app.services.llm_service import LLMService
-from app.models import SearchIndex
+from app.services.search_service import search_service
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -33,13 +33,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create a global search index
-global_search_index = SearchIndex()
-
 # Initialize services
 document_service = DocumentService()
-# Override the document service search index with our global one
-document_service.search_index = global_search_index
 llm_service = LLMService()
 
 @app.on_event("startup")
@@ -48,8 +43,8 @@ async def startup_event():
     # Initialize search index from existing documents
     db = next(get_db())
     try:
-        document_service.reindex_documents(db)
-        print(f"Initialized search index with {document_service.search_index.get_document_count()} documents")
+        indexed_count = search_service.reindex_all_documents(db)
+        print(f"Initialized search index with {indexed_count} documents")
     finally:
         db.close()
 
@@ -337,8 +332,7 @@ async def get_document_stats(db: Session = Depends(get_db)):
 async def reindex_documents(db: Session = Depends(get_db)):
     """Manually reindex all documents for search."""
     try:
-        document_service.reindex_documents(db)
-        indexed_count = document_service.search_index.get_document_count()
+        indexed_count = search_service.reindex_all_documents(db)
         return {
             "message": f"Successfully reindexed {indexed_count} documents",
             "indexed_documents": indexed_count
@@ -349,9 +343,4 @@ async def reindex_documents(db: Session = Depends(get_db)):
 @app.get("/documents/search-status")
 async def get_search_status():
     """Get search index status for debugging."""
-    return {
-        "indexed_documents": document_service.search_index.get_document_count(),
-        "search_index_keys": len(document_service.search_index.index),
-        "document_ids": list(document_service.search_index.documents.keys()),
-        "search_index_id": document_service.search_index.instance_id
-    }
+    return search_service.get_status()

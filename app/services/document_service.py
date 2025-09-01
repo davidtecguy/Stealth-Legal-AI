@@ -1,20 +1,15 @@
 from sqlalchemy.orm import Session
-from app.models import Document, SearchIndex
+from app.models import Document
 from app.schemas import DocumentCreate, DocumentChanges, ChangeOperation
 from app.services.file_processor import FileProcessor
+from app.services.search_service import search_service
 import hashlib
 import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 class DocumentService:
-    # Class-level search index to ensure it's shared across all instances
-    _search_index = None
-    
     def __init__(self):
-        if DocumentService._search_index is None:
-            DocumentService._search_index = SearchIndex()
-        self.search_index = DocumentService._search_index
         self.file_processor = FileProcessor()
     
     def create_document(self, db: Session, document_data: DocumentCreate, file) -> Document:
@@ -43,7 +38,7 @@ class DocumentService:
         
         # Add to search index if content is available
         if document.content:
-            self.search_index.add_document(
+            search_service.add_document(
                 document.id, 
                 document.title, 
                 document.content, 
@@ -79,8 +74,8 @@ class DocumentService:
             document.etag = f'"{document.content_hash}"'
             
             # Update search index
-            self.search_index.remove_document(document.id)
-            self.search_index.add_document(
+            search_service.remove_document(document.id)
+            search_service.add_document(
                 document.id, 
                 document.title, 
                 document.content, 
@@ -99,7 +94,7 @@ class DocumentService:
             return False
         
         # Remove from search index
-        self.search_index.remove_document(document.id)
+        search_service.remove_document(document.id)
         
         # Delete file from storage
         if os.path.exists(document.file_path):
@@ -113,14 +108,7 @@ class DocumentService:
     
     def search_documents(self, query: str, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
         """Search documents using the search index."""
-        results = self.search_index.search(query, limit, offset)
-        
-        return {
-            'results': results,
-            'total': len(results),
-            'limit': limit,
-            'offset': offset
-        }
+        return search_service.search(query, limit, offset)
     
     def get_document_metadata(self, db: Session, document_id: int) -> Optional[Dict[str, Any]]:
         """Get additional metadata for a document."""
@@ -193,20 +181,9 @@ class DocumentService:
         
         return content
     
-    def reindex_documents(self, db: Session):
+    def reindex_documents(self, db: Session) -> int:
         """Rebuild the search index from all documents."""
-        self.search_index.clear()
-        documents = db.query(Document).all()
-        
-        for document in documents:
-            if document.content:
-                self.search_index.add_document(
-                    document.id, 
-                    document.title, 
-                    document.content, 
-                    document.file_type,
-                    document.filename
-                )
+        return search_service.reindex_all_documents(db)
     
     def get_document_stats(self, db: Session) -> Dict[str, Any]:
         """Get document statistics."""
@@ -224,5 +201,5 @@ class DocumentService:
             'total_size_bytes': total_size,
             'total_size_mb': round(total_size / (1024 * 1024), 2),
             'file_type_distribution': dict(file_types),
-            'indexed_documents': self.search_index.get_document_count()
+            'indexed_documents': search_service.search_index.get_document_count()
         }
