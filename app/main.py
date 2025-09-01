@@ -326,3 +326,16 @@ async def get_supported_file_types():
 async def get_document_stats(db: Session = Depends(get_db)):
     """Get document statistics and system information."""
     return document_service.get_document_stats(db)
+
+@app.post("/documents/reindex")
+async def reindex_documents(db: Session = Depends(get_db)):
+    """Manually reindex all documents for search."""
+    try:
+        document_service.reindex_documents(db)
+        indexed_count = document_service.search_index.get_document_count()
+        return {
+            "message": f"Successfully reindexed {indexed_count} documents",
+            "indexed_documents": indexed_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
