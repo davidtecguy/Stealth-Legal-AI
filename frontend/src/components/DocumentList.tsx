@@ -57,7 +57,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
     if (file) {
       // Validate file type
       const fileType = file.name.split('.').pop()?.toLowerCase();
-      if (fileType && ['pdf', 'doc'].includes(fileType)) {
+      if (fileType && ['pdf', 'doc', 'docx'].includes(fileType)) {
         setSelectedFile(file);
         setError(null);
         // Auto-fill title if not set
@@ -65,7 +65,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
           setNewTitle(file.name.replace(/\.[^/.]+$/, '')); // Remove extension
         }
       } else {
-        setError('Please select a PDF or DOC file');
+        setError('Please select a PDF, DOC, or DOCX file');
         setSelectedFile(null);
       }
     }

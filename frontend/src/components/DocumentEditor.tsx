@@ -63,7 +63,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     if (file) {
       // Validate file type
       const fileType = file.name.split('.').pop()?.toLowerCase();
-      if (fileType && ['pdf', 'doc'].includes(fileType)) {
+      if (fileType && ['pdf', 'doc', 'docx'].includes(fileType)) {
         setSelectedFile(file);
         setError(null);
         // Auto-fill title if not set
@@ -71,7 +71,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           setTitle(file.name.replace(/\.[^/.]+$/, '')); // Remove extension
         }
       } else {
-        setError('Please select a PDF or DOC file');
+        setError('Please select a PDF, DOC, or DOCX file');
         setSelectedFile(null);
       }
     }
@@ -236,7 +236,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.doc"
+                  accept=".pdf,.doc,.docx"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -264,7 +264,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       Click to upload or drag and drop
                     </p>
                     <p className="text-xs text-gray-500">
-                      PDF or DOC files only (max 10MB)
+                      PDF, DOC, or DOCX files only (max 10MB)
                     </p>
                     <Button
                       variant="outline"
