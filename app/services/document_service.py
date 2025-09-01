@@ -1,150 +1,215 @@
 from sqlalchemy.orm import Session
 from app.models import Document, SearchIndex
-from app.schemas import DocumentCreate, ChangeOperation, ChangeTarget, ChangeRange
-from typing import List, Optional, Tuple
-import re
+from app.schemas import DocumentCreate, DocumentChanges, ChangeOperation
+from app.services.file_processor import FileProcessor
+import hashlib
+import os
+from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 class DocumentService:
     def __init__(self):
         self.search_index = SearchIndex()
+        self.file_processor = FileProcessor()
     
-    def create_document(self, db: Session, document: DocumentCreate) -> Document:
-        """Create a new document."""
-        db_document = Document(title=document.title, content=document.content)
-        db.add(db_document)
+    def create_document(self, db: Session, document_data: DocumentCreate, file) -> Document:
+        """Create a new document from file upload."""
+        # Process the uploaded file
+        file_info = self.file_processor.process_upload(file, document_data.title)
+        
+        # Generate ETag from content hash
+        etag = f'"{file_info["content_hash"]}"' if file_info["content_hash"] else f'"{hashlib.md5().hexdigest()}"'
+        
+        # Create document record
+        document = Document(
+            title=document_data.title,
+            filename=file_info['filename'],
+            file_path=file_info['file_path'],
+            file_type=file_info['file_type'],
+            file_size=file_info['file_size'],
+            content=file_info['content'],
+            content_hash=file_info['content_hash'],
+            etag=etag
+        )
+        
+        db.add(document)
         db.commit()
-        db.refresh(db_document)
+        db.refresh(document)
         
-        # Add to search index
-        self.search_index.add_document(db_document.id, db_document.content)
+        # Add to search index if content is available
+        if document.content:
+            self.search_index.add_document(
+                document.id, 
+                document.title, 
+                document.content, 
+                document.file_type
+            )
         
-        return db_document
-    
-    def get_document(self, db: Session, document_id: int) -> Optional[Document]:
-        """Get document by ID."""
-        return db.query(Document).filter(Document.id == document_id).first()
+        return document
     
     def get_documents(self, db: Session, skip: int = 0, limit: int = 100) -> List[Document]:
-        """Get all documents with pagination."""
+        """Get documents with pagination."""
         return db.query(Document).offset(skip).limit(limit).all()
     
-    def delete_document(self, db: Session, document_id: int) -> bool:
-        """Delete document by ID."""
-        document = db.query(Document).filter(Document.id == document_id).first()
-        if document:
-            db.delete(document)
-            db.commit()
-            # Remove from search index
-            self.search_index.remove_document(document_id)
-            return True
-        return False
+    def get_document(self, db: Session, document_id: int) -> Optional[Document]:
+        """Get a specific document by ID."""
+        return db.query(Document).filter(Document.id == document_id).first()
     
-    def apply_changes(self, db: Session, document_id: int, changes: List[ChangeOperation], etag: Optional[str] = None) -> Tuple[Document, bool]:
-        """
-        Apply changes to document with concurrency control.
-        Returns (document, has_changes)
-        """
+    def update_document(self, db: Session, document_id: int, changes: DocumentChanges, etag: str) -> Document:
+        """Update document with changes."""
         document = self.get_document(db, document_id)
         if not document:
             raise ValueError("Document not found")
         
-        # Check ETag for concurrency control
-        if etag and document.etag != etag:
+        # Verify ETag for concurrency control
+        if document.etag != etag:
             raise ValueError("Document has been modified by another user")
         
-        original_content = document.content
-        new_content = original_content
-        
-        for change in changes:
-            if change.operation == "replace":
-                new_content = self._apply_replace_operation(new_content, change)
-            else:
-                raise ValueError(f"Unsupported operation: {change.operation}")
-        
-        # Only update if content actually changed
-        if new_content != original_content:
-            document.update_content(new_content)
-            db.commit()
-            db.refresh(document)
+        # Apply changes to content
+        if document.content:
+            updated_content = self._apply_changes(document.content, changes.changes)
+            document.content = updated_content
+            document.content_hash = hashlib.md5(updated_content.encode()).hexdigest()
+            document.etag = f'"{document.content_hash}"'
             
             # Update search index
-            self.search_index.update_document(document_id, new_content)
-            
-            return document, True
+            self.search_index.remove_document(document.id)
+            self.search_index.add_document(
+                document.id, 
+                document.title, 
+                document.content, 
+                document.file_type
+            )
         
-        return document, False
+        db.commit()
+        db.refresh(document)
+        return document
     
-    def _apply_replace_operation(self, content: str, change: ChangeOperation) -> str:
-        """Apply a replace operation to content."""
-        if change.target:
-            return self._replace_by_text(content, change.target, change.replacement)
-        elif change.range:
-            return self._replace_by_range(content, change.range, change.replacement)
-        else:
-            raise ValueError("Either target or range must be specified")
-    
-    def _replace_by_text(self, content: str, target: ChangeTarget, replacement: str) -> str:
-        """Replace text by finding target text and replacing specified occurrence."""
-        target_text = target.text
-        occurrence = target.occurrence
-        
-        # Find all occurrences
-        positions = []
-        start = 0
-        while True:
-            pos = content.find(target_text, start)
-            if pos == -1:
-                break
-            positions.append(pos)
-            start = pos + 1
-        
-        if not positions:
-            raise ValueError(f"Target text '{target_text}' not found in document")
-        
-        if occurrence > len(positions):
-            raise ValueError(f"Occurrence {occurrence} not found. Only {len(positions)} occurrences exist.")
-        
-        # Replace the specified occurrence
-        target_pos = positions[occurrence - 1]
-        return content[:target_pos] + replacement + content[target_pos + len(target_text):]
-    
-    def _replace_by_range(self, content: str, range_obj: ChangeRange, replacement: str) -> str:
-        """Replace text by character range."""
-        if range_obj.start >= len(content):
-            raise ValueError("Start position exceeds document length")
-        
-        if range_obj.end > len(content):
-            raise ValueError("End position exceeds document length")
-        
-        if range_obj.start >= range_obj.end:
-            raise ValueError("Start position must be less than end position")
-        
-        return content[:range_obj.start] + replacement + content[range_obj.end:]
-    
-    def search_documents(self, query: str, limit: int = 10, offset: int = 0) -> dict:
-        """Search across all documents."""
-        results = self.search_index.search(query, limit, offset)
-        return {
-            "results": results,
-            "total": len(results),
-            "limit": limit,
-            "offset": offset
-        }
-    
-    def search_document(self, db: Session, document_id: int, query: str, limit: int = 10, offset: int = 0) -> dict:
-        """Search within a specific document."""
+    def delete_document(self, db: Session, document_id: int) -> bool:
+        """Delete a document and its associated file."""
         document = self.get_document(db, document_id)
         if not document:
-            raise ValueError("Document not found")
+            return False
         
-        # Create temporary search index for this document only
-        temp_index = SearchIndex()
-        temp_index.add_document(document_id, document.content)
+        # Remove from search index
+        self.search_index.remove_document(document.id)
         
-        results = temp_index.search(query, limit, offset)
+        # Delete file from storage
+        if os.path.exists(document.file_path):
+            os.remove(document.file_path)
+        
+        # Delete database record
+        db.delete(document)
+        db.commit()
+        
+        return True
+    
+    def search_documents(self, query: str, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        """Search documents using the search index."""
+        results = self.search_index.search(query, limit, offset)
+        
         return {
-            "results": results,
-            "total": len(results),
-            "limit": limit,
-            "offset": offset
+            'results': results,
+            'total': len(results),
+            'limit': limit,
+            'offset': offset
+        }
+    
+    def get_document_metadata(self, db: Session, document_id: int) -> Optional[Dict[str, Any]]:
+        """Get additional metadata for a document."""
+        document = self.get_document(db, document_id)
+        if not document:
+            return None
+        
+        # Get file metadata
+        file_metadata = self.file_processor.get_file_metadata(document.file_path)
+        
+        return {
+            'id': document.id,
+            'title': document.title,
+            'filename': document.filename,
+            'file_type': document.file_type,
+            'file_size': document.file_size,
+            'page_count': file_metadata.get('page_count'),
+            'word_count': file_metadata.get('word_count'),
+            'created_date': file_metadata.get('created_date'),
+            'modified_date': file_metadata.get('modified_date'),
+            'uploaded_at': document.created_at,
+            'last_modified': document.updated_at
+        }
+    
+    def get_supported_file_types(self) -> Dict[str, str]:
+        """Get list of supported file types."""
+        return self.file_processor.get_supported_types()
+    
+    def _apply_changes(self, content: str, changes: List[ChangeOperation]) -> str:
+        """Apply changes to document content."""
+        # Sort changes by position (for range-based changes)
+        range_changes = [c for c in changes if c.range]
+        text_changes = [c for c in changes if c.target]
+        
+        # Apply range-based changes first (they affect positions)
+        for change in sorted(range_changes, key=lambda x: x.range.start, reverse=True):
+            if change.range and change.range.start < change.range.end <= len(content):
+                content = content[:change.range.start] + change.replacement + content[change.range.end:]
+        
+        # Apply text-based changes
+        for change in text_changes:
+            if change.target:
+                content = self._replace_text_occurrence(
+                    content, 
+                    change.target.text, 
+                    change.target.occurrence, 
+                    change.replacement
+                )
+        
+        return content
+    
+    def _replace_text_occurrence(self, content: str, target: str, occurrence: int, replacement: str) -> str:
+        """Replace the nth occurrence of target text with replacement."""
+        if occurrence < 1:
+            return content
+        
+        start = 0
+        for i in range(occurrence):
+            pos = content.find(target, start)
+            if pos == -1:
+                break
+            if i == occurrence - 1:
+                return content[:pos] + replacement + content[pos + len(target):]
+            start = pos + 1
+        
+        return content
+    
+    def reindex_documents(self, db: Session):
+        """Rebuild the search index from all documents."""
+        self.search_index.clear()
+        documents = db.query(Document).all()
+        
+        for document in documents:
+            if document.content:
+                self.search_index.add_document(
+                    document.id, 
+                    document.title, 
+                    document.content, 
+                    document.file_type
+                )
+    
+    def get_document_stats(self, db: Session) -> Dict[str, Any]:
+        """Get document statistics."""
+        total_docs = db.query(Document).count()
+        total_size = db.query(Document).with_entities(
+            db.func.sum(Document.file_size)
+        ).scalar() or 0
+        
+        file_types = db.query(Document.file_type, db.func.count(Document.id)).group_by(
+            Document.file_type
+        ).all()
+        
+        return {
+            'total_documents': total_docs,
+            'total_size_bytes': total_size,
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'file_type_distribution': dict(file_types),
+            'indexed_documents': self.search_index.get_document_count()
         }

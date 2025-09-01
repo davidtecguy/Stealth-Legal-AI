@@ -1,21 +1,44 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Dict, Any
 from datetime import datetime
+import os
 
 class DocumentBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
-    content: str = Field(..., min_length=1)
+    filename: str = Field(..., min_length=1, max_length=255)
+    file_type: str = Field(..., description="File type (pdf, doc, docx, txt)")
 
 class DocumentCreate(DocumentBase):
     pass
 
 class DocumentResponse(DocumentBase):
     id: int
+    file_path: str
+    file_size: int
+    content: Optional[str] = None
+    content_hash: Optional[str] = None
     etag: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     
     model_config = {"from_attributes": True}
+
+class FileUploadResponse(BaseModel):
+    filename: str
+    file_path: str
+    file_type: str
+    file_size: int
+    message: str
+
+class DocumentMetadata(BaseModel):
+    title: str
+    filename: str
+    file_type: str
+    file_size: int
+    page_count: Optional[int] = None
+    word_count: Optional[int] = None
+    created_date: Optional[datetime] = None
+    modified_date: Optional[datetime] = None
 
 class ChangeTarget(BaseModel):
     text: str = Field(..., description="Text to find and replace")
@@ -35,9 +58,11 @@ class DocumentChanges(BaseModel):
     changes: List[ChangeOperation] = Field(..., min_length=1, max_length=100)
 
 class SearchResult(BaseModel):
-    document_id: int
+    id: int
     title: str
-    score: int
+    filename: str
+    file_type: str
+    relevance_score: float
     context: List[str]
 
 class SearchResponse(BaseModel):
@@ -57,13 +82,13 @@ class LegalTerm(BaseModel):
     meaning: str
     context: str
     implications: str
-    source: str = "rule_based"
+    source: str
 
 class LegalSuggestion(BaseModel):
     type: str
     suggestion: str
     example: str
-    source: str = "rule_based"
+    source: str
 
 class DocumentAnalysis(BaseModel):
     key_terms: List[str]
@@ -71,14 +96,14 @@ class DocumentAnalysis(BaseModel):
     document_type: str
     summary: str
     recommendations: List[str]
-    source: str = "rule_based"
+    source: str
 
 class DocumentClassification(BaseModel):
     document_type: str
     category: str
     complexity: str
     confidence: float
-    source: str = "rule_based"
+    source: str
 
 class LLMAnalysisResponse(BaseModel):
     analysis: DocumentAnalysis
@@ -91,7 +116,8 @@ class LLMAnalysisResponse(BaseModel):
 class SemanticSearchResult(BaseModel):
     id: int
     title: str
-    content: str
+    filename: str
+    file_type: str
     relevance_score: float
     search_method: str
     llm_analysis: Optional[str] = None
@@ -105,12 +131,20 @@ class SemanticSearchResponse(BaseModel):
 
 class DocumentImprovementRequest(BaseModel):
     document_id: int
-    improvement_type: str = Field(..., description="Type of improvement: clarity, legal_precision, risk_mitigation, consistency")
+    improvement_type: str = Field(..., description="Type of improvement (clarity, legal_terms, structure)")
     specific_focus: Optional[str] = Field(None, description="Specific area to focus on")
 
 class DocumentImprovementResponse(BaseModel):
-    document_id: int
-    improvements: List[LegalSuggestion]
     original_content: str
-    suggested_changes: List[Dict[str, Any]]
-    llm_enabled: bool
+    improved_content: str
+    changes_made: List[str]
+    reasoning: str
+    improvement_type: str
+
+class LLMStatus(BaseModel):
+    enabled: bool
+    model: str
+    temperature: float
+    max_tokens: int
+    legal_terms_count: int
+    legal_phrases_count: int

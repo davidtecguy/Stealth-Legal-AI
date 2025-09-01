@@ -1,9 +1,11 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from typing import Dict, List, Set
+from sqlalchemy.orm import Session
 import hashlib
-import json
+import re
+from typing import List, Dict, Any, Optional
+import os
 
 Base = declarative_base()
 
@@ -12,113 +14,139 @@ class Document(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
-    etag = Column(String(64), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)  # Original filename
+    file_path = Column(String(500), nullable=False)  # Path to stored file
+    file_type = Column(String(50), nullable=False)  # pdf, doc, docx, txt
+    file_size = Column(Integer, nullable=False)  # File size in bytes
+    content = Column(Text, nullable=True)  # Extracted text content (nullable for large files)
+    content_hash = Column(String(64), nullable=True)  # Hash of content for change detection
+    etag = Column(String(64), nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    def __init__(self, title: str, content: str):
-        self.title = title
-        self.content = content
-        self.etag = self._generate_etag()
-    
-    def _generate_etag(self) -> str:
-        """Generate ETag based on content hash."""
-        content_hash = hashlib.md5(self.content.encode()).hexdigest()
-        return f'"{content_hash}"'
-    
-    def update_content(self, new_content: str):
-        """Update content and regenerate ETag."""
-        self.content = new_content
-        self.etag = self._generate_etag()
+    # Index for search performance
+    __table_args__ = (
+        Index('idx_documents_content', 'content'),
+        Index('idx_documents_file_type', 'file_type'),
+        Index('idx_documents_created_at', 'created_at'),
+    )
 
 class SearchIndex:
-    """In-memory inverted index for fast document search."""
+    """In-memory inverted index for document search."""
     
     def __init__(self):
-        self.index: Dict[str, Dict[int, List[int]]] = {}  # word -> {doc_id -> [positions]}
-        self.documents: Dict[int, str] = {}
+        self.index: Dict[str, Dict[int, List[int]]] = {}
+        self.documents: Dict[int, Dict[str, Any]] = {}
+        self.stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+            'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'
+        }
     
-    def add_document(self, doc_id: int, content: str):
-        """Add document to search index."""
-        self.documents[doc_id] = content
-        words = self._tokenize(content)
+    def add_document(self, doc_id: int, title: str, content: str, file_type: str):
+        """Add a document to the search index."""
+        self.documents[doc_id] = {
+            'title': title,
+            'content': content,
+            'file_type': file_type
+        }
         
-        for position, word in enumerate(words):
-            if word not in self.index:
-                self.index[word] = {}
-            if doc_id not in self.index[word]:
-                self.index[word][doc_id] = []
-            self.index[word][doc_id].append(position)
+        # Tokenize and index content
+        tokens = self._tokenize(content)
+        for position, token in enumerate(tokens):
+            if token not in self.index:
+                self.index[token] = {}
+            if doc_id not in self.index[token]:
+                self.index[token][doc_id] = []
+            self.index[token][doc_id].append(position)
     
     def remove_document(self, doc_id: int):
-        """Remove document from search index."""
+        """Remove a document from the search index."""
         if doc_id in self.documents:
             del self.documents[doc_id]
-            # Remove from all word indices
-            for word in self.index:
-                if doc_id in self.index[word]:
-                    del self.index[word][doc_id]
+            
+        # Remove from all token indexes
+        for token in self.index:
+            if doc_id in self.index[token]:
+                del self.index[token][doc_id]
     
-    def update_document(self, doc_id: int, content: str):
-        """Update document in search index."""
-        self.remove_document(doc_id)
-        self.add_document(doc_id, content)
-    
-    def search(self, query: str, limit: int = 10, offset: int = 0) -> List[dict]:
-        """Search for documents containing query terms."""
-        query_words = self._tokenize(query.lower())
-        if not query_words:
+    def search(self, query: str, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+        """Search for documents containing the query."""
+        if not query.strip():
             return []
         
-        # Find documents containing all query words
-        doc_scores = {}
+        query_tokens = self._tokenize(query.lower())
+        if not query_tokens:
+            return []
         
-        for word in query_words:
-            if word in self.index:
-                for doc_id, positions in self.index[word].items():
+        # Calculate relevance scores
+        doc_scores: Dict[int, float] = {}
+        doc_positions: Dict[int, List[int]] = {}
+        
+        for token in query_tokens:
+            if token in self.index:
+                for doc_id, positions in self.index[token].items():
                     if doc_id not in doc_scores:
-                        doc_scores[doc_id] = {'score': 0, 'matches': []}
-                    doc_scores[doc_id]['score'] += len(positions)
-                    doc_scores[doc_id]['matches'].extend(positions)
+                        doc_scores[doc_id] = 0.0
+                        doc_positions[doc_id] = []
+                    
+                    # Score based on frequency and position
+                    doc_scores[doc_id] += len(positions) * 0.5
+                    doc_positions[doc_id].extend(positions)
         
-        # Sort by score and get context
+        # Sort by relevance score
+        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+        
         results = []
-        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]['score'], reverse=True)
-        
-        for doc_id, score_info in sorted_docs[offset:offset + limit]:
-            context = self._get_context(doc_id, score_info['matches'])
-            results.append({
-                'document_id': doc_id,
-                'title': f"Document {doc_id}",  # In real app, get from DB
-                'score': score_info['score'],
-                'context': context
-            })
+        for doc_id, score in sorted_docs[offset:offset + limit]:
+            if doc_id in self.documents:
+                doc = self.documents[doc_id]
+                context = self._get_context(doc['content'], doc_positions[doc_id], query)
+                
+                results.append({
+                    'id': doc_id,
+                    'title': doc['title'],
+                    'file_type': doc['file_type'],
+                    'relevance_score': score,
+                    'context': context
+                })
         
         return results
     
     def _tokenize(self, text: str) -> List[str]:
-        """Simple tokenization - split on whitespace and punctuation."""
-        import re
-        # Remove punctuation and split on whitespace
-        words = re.findall(r'\b\w+\b', text.lower())
-        # Filter out common stop words
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
-        return [word for word in words if word not in stop_words and len(word) > 2]
+        """Tokenize text into searchable terms."""
+        # Convert to lowercase and split on non-alphanumeric characters
+        tokens = re.findall(r'\b[a-zA-Z]+\b', text.lower())
+        # Remove stop words and short tokens
+        return [token for token in tokens if token not in self.stop_words and len(token) > 2]
     
-    def _get_context(self, doc_id: int, positions: List[int], context_size: int = 50) -> List[str]:
-        """Get context around matched positions."""
-        if doc_id not in self.documents:
+    def _get_context(self, content: str, positions: List[int], query: str, context_size: int = 100) -> List[str]:
+        """Get context snippets around matched positions."""
+        if not positions:
             return []
         
-        content = self.documents[doc_id]
-        words = content.split()
-        contexts = []
+        context_snippets = []
+        for pos in positions[:3]:  # Limit to first 3 matches
+            start = max(0, pos - context_size)
+            end = min(len(content), pos + context_size)
+            snippet = content[start:end]
+            
+            # Clean up snippet boundaries
+            if start > 0:
+                snippet = "..." + snippet
+            if end < len(content):
+                snippet = snippet + "..."
+            
+            context_snippets.append(snippet)
         
-        for pos in positions[:5]:  # Limit to first 5 matches
-            start = max(0, pos - context_size // 2)
-            end = min(len(words), pos + context_size // 2)
-            context_words = words[start:end]
-            contexts.append(' '.join(context_words))
-        
-        return contexts
+        return context_snippets
+    
+    def get_document_count(self) -> int:
+        """Get total number of indexed documents."""
+        return len(self.documents)
+    
+    def clear(self):
+        """Clear all indexed documents."""
+        self.index.clear()
+        self.documents.clear()

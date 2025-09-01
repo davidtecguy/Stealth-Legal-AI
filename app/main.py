@@ -1,86 +1,91 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Header
+from fastapi import FastAPI, Depends, HTTPException, Query, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
-import time
+import os
 
-from app.database import get_db, create_tables
-from app.services import DocumentService
-from app.services.llm_service import LLMService
+from app.database import get_db, engine
+from app.models import Base, Document
 from app.schemas import (
-    DocumentBase, DocumentCreate, DocumentResponse, DocumentChanges,
-    SearchResult, SearchResponse, ErrorResponse,
-    LLMAnalysisResponse, SemanticSearchResponse, DocumentImprovementResponse,
-    DocumentImprovementRequest, DocumentClassification, LegalTerm
+    DocumentCreate, DocumentResponse, DocumentChanges, SearchResponse,
+    SemanticSearchResponse, LLMAnalysisResponse, DocumentImprovementResponse,
+    DocumentClassification, LegalTerm, FileUploadResponse, DocumentMetadata
 )
+from app.services.document_service import DocumentService
+from app.services.llm_service import LLMService
 
-# Create FastAPI app
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
-    title="Stealth Legal AI - Document Management Service",
-    description="A full-stack document management service with redlining capabilities and search functionality",
+    title="Stealth Legal AI API",
+    description="Intelligent Document Management & Legal Analysis",
     version="1.0.0"
 )
 
-# Add CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize document service
+# Initialize services
 document_service = DocumentService()
-
-# Initialize LLM service
 llm_service = LLMService()
 
-# Initialize search index with existing documents
 @app.on_event("startup")
-async def initialize_search_index():
-    """Initialize search index with existing documents."""
-    from sqlalchemy.orm import Session
+async def startup_event():
+    """Initialize services on startup."""
+    # Initialize search index from existing documents
     db = next(get_db())
     try:
-        documents = document_service.get_documents(db, 0, 1000)
-        for doc in documents:
-            document_service.search_index.add_document(doc.id, doc.content)
-        print(f"Initialized search index with {len(documents)} documents")
+        document_service.reindex_documents(db)
+        print(f"Initialized search index with {document_service.search_index.get_document_count()} documents")
     finally:
         db.close()
 
-# Create tables on startup
-@app.on_event("startup")
-async def startup_event():
-    create_tables()
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "service": "Stealth Legal AI API"}
 
-# Error handlers
-@app.exception_handler(ValueError)
-async def value_error_handler(request, exc):
-    return ErrorResponse(
-        error=str(exc),
-        code=400,
-        details="Invalid request data"
-    )
+@app.get("/llm/status")
+async def get_llm_status():
+    """Get LLM service status and configuration."""
+    return llm_service.get_status()
 
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    return ErrorResponse(
-        error="Internal server error",
-        code=500,
-        details=str(exc)
-    )
-
-# Document endpoints
-@app.post("/documents", response_model=DocumentResponse, status_code=201)
-async def create_document(
-    document: DocumentCreate,
+@app.post("/documents/upload", response_model=FileUploadResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    title: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """Create a new document."""
+    """Upload a new document file."""
     try:
-        return document_service.create_document(db, document)
+        # Validate file type
+        supported_types = document_service.get_supported_file_types()
+        file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        
+        if file_extension not in supported_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type. Supported types: {', '.join(supported_types.keys())}"
+            )
+        
+        # Create document from file upload
+        document = document_service.create_document(db, DocumentCreate(title=title, filename=file.filename, file_type=file_extension), file)
+        
+        return FileUploadResponse(
+            filename=document.filename,
+            file_path=document.file_path,
+            file_type=document.file_type,
+            file_size=document.file_size,
+            message=f"Document '{title}' uploaded successfully"
+        )
+        
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -92,6 +97,49 @@ async def list_documents(
 ):
     """List all documents with pagination."""
     return document_service.get_documents(db, skip, limit)
+
+@app.get("/documents/{document_id}", response_model=DocumentResponse)
+async def get_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific document by ID."""
+    document = document_service.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
+
+@app.get("/documents/{document_id}/metadata", response_model=DocumentMetadata)
+async def get_document_metadata(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get detailed metadata for a document."""
+    metadata = document_service.get_document_metadata(db, document_id)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return metadata
+
+@app.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """Download a document file."""
+    document = document_service.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if not os.path.exists(document.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    # Return file for download
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        path=document.file_path,
+        filename=document.filename,
+        media_type=document_service.get_supported_file_types().get(document.file_type, 'application/octet-stream')
+    )
 
 # Search endpoints (must come before document_id routes)
 @app.get("/documents/search", response_model=SearchResponse)
@@ -118,13 +166,15 @@ async def semantic_search_documents(
     """Perform semantic search across documents using LLM."""
     try:
         # Get all documents for semantic analysis
-        documents = document_service.get_documents(db, offset, limit + 50)  # Get more for analysis
+        documents = document_service.get_documents(db, offset, limit + 50)
         
         # Convert SQLAlchemy objects to dictionaries
         doc_dicts = [
             {
                 "id": doc.id,
                 "title": doc.title,
+                "filename": doc.filename,
+                "file_type": doc.file_type,
                 "content": doc.content,
                 "etag": doc.etag,
                 "created_at": doc.created_at.isoformat() if doc.created_at else None,
@@ -150,17 +200,6 @@ async def semantic_search_documents(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/documents/{document_id}", response_model=DocumentResponse)
-async def get_document(
-    document_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get a specific document by ID."""
-    document = document_service.get_document(db, document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return document
-
 @app.patch("/documents/{document_id}", response_model=DocumentResponse)
 async def update_document(
     document_id: int,
@@ -170,53 +209,29 @@ async def update_document(
 ):
     """Apply changes to a document with concurrency control."""
     try:
-        document, has_changes = document_service.apply_changes(
-            db, document_id, changes.changes, if_match
-        )
+        if not if_match:
+            raise HTTPException(status_code=428, detail="If-Match header required for concurrency control")
         
-        if not has_changes:
-            return document  # No changes applied, return current document
-            
+        document = document_service.update_document(db, document_id, changes, if_match)
         return document
+        
     except ValueError as e:
-        if "Document not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        elif "Document has been modified" in str(e):
-            raise HTTPException(status_code=412, detail=str(e))
-        else:
-            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/documents/{document_id}", status_code=204)
+@app.delete("/documents/{document_id}")
 async def delete_document(
     document_id: int,
     db: Session = Depends(get_db)
 ):
-    """Delete a document."""
+    """Delete a document and its associated file."""
     success = document_service.delete_document(db, document_id)
     if not success:
         raise HTTPException(status_code=404, detail="Document not found")
+    return {"message": "Document deleted successfully"}
 
-@app.get("/documents/{document_id}/search", response_model=SearchResponse)
-async def search_document(
-    document_id: int,
-    q: str = Query(..., min_length=1, description="Search query"),
-    limit: int = Query(10, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db)
-):
-    """Search within a specific document."""
-    try:
-        results = document_service.search_document(db, document_id, q, limit, offset)
-        return SearchResponse(**results)
-    except ValueError as e:
-        if "Document not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        else:
-            raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# LLM Legal AI Endpoints
+# LLM Analysis Endpoints
 @app.post("/documents/{document_id}/analyze", response_model=LLMAnalysisResponse)
 async def analyze_document_llm(
     document_id: int,
@@ -224,29 +239,15 @@ async def analyze_document_llm(
 ):
     """Analyze document using LLM for legal insights."""
     try:
-        # Get document
         document = document_service.get_document(db, document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        start_time = time.time()
+        if not document.content:
+            raise HTTPException(status_code=400, detail="Document has no extractable content")
         
-        # Perform LLM analysis
         analysis = llm_service.analyze_document(document.content)
-        suggestions = llm_service.suggest_improvements(document.content)
-        terms = llm_service.extract_legal_terms(document.content)
-        classification = llm_service.classify_document(document.content)
-        
-        processing_time = time.time() - start_time
-        
-        return LLMAnalysisResponse(
-            analysis=analysis,
-            suggestions=suggestions,
-            terms=terms,
-            classification=classification,
-            llm_enabled=llm_service.enabled,
-            processing_time=processing_time
-        )
+        return analysis
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -257,46 +258,24 @@ async def improve_document_llm(
     improvement_request: DocumentImprovementRequest,
     db: Session = Depends(get_db)
 ):
-    """Get LLM-powered improvement suggestions for a document."""
+    """Get LLM-powered document improvement suggestions."""
     try:
-        # Get document
         document = document_service.get_document(db, document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Get improvements based on request type
-        if improvement_request.improvement_type == "clarity":
-            suggestions = llm_service.suggest_improvements(document.content)
-        elif improvement_request.improvement_type == "legal_precision":
-            suggestions = llm_service.suggest_improvements(document.content)
-        elif improvement_request.improvement_type == "risk_mitigation":
-            suggestions = llm_service.suggest_improvements(document.content)
-        elif improvement_request.improvement_type == "consistency":
-            suggestions = llm_service.suggest_improvements(document.content)
-        else:
-            suggestions = llm_service.suggest_improvements(document.content)
+        if not document.content:
+            raise HTTPException(status_code=400, detail="Document has no extractable content")
         
-        # Create suggested changes
-        suggested_changes = []
-        for suggestion in suggestions:
-            suggested_changes.append({
-                "type": suggestion.type,
-                "suggestion": suggestion.suggestion,
-                "example": suggestion.example
-            })
-        
-        return DocumentImprovementResponse(
-            document_id=document_id,
-            improvements=suggestions,
-            original_content=document.content,
-            suggested_changes=suggested_changes,
-            llm_enabled=llm_service.enabled
+        improvement = llm_service.improve_document(
+            document.content,
+            improvement_request.improvement_type,
+            improvement_request.specific_focus
         )
+        return improvement
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 @app.get("/documents/{document_id}/classify", response_model=DocumentClassification)
 async def classify_document_llm(
@@ -305,14 +284,14 @@ async def classify_document_llm(
 ):
     """Classify document type using LLM."""
     try:
-        # Get document
         document = document_service.get_document(db, document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Perform classification
-        classification = llm_service.classify_document(document.content)
+        if not document.content:
+            raise HTTPException(status_code=400, detail="Document has no extractable content")
         
+        classification = llm_service.classify_document(document.content)
         return classification
         
     except Exception as e:
@@ -325,36 +304,25 @@ async def extract_legal_terms_llm(
 ):
     """Extract legal terms from document using LLM."""
     try:
-        # Get document
         document = document_service.get_document(db, document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Extract terms
-        terms = llm_service.extract_legal_terms(document.content)
+        if not document.content:
+            raise HTTPException(status_code=400, detail="Document has no extractable content")
         
+        terms = llm_service.extract_legal_terms(document.content)
         return terms
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/llm/status")
-async def get_llm_status():
-    """Get LLM service status and configuration."""
-    return {
-        "enabled": llm_service.enabled,
-        "model": llm_service.model if llm_service.enabled else None,
-        "temperature": llm_service.temperature,
-        "max_tokens": llm_service.max_tokens,
-        "legal_terms_loaded": len(llm_service.legal_terms) > 0,
-        "legal_phrases_loaded": len(llm_service.legal_phrases) > 0
-    }
+@app.get("/file-types")
+async def get_supported_file_types():
+    """Get list of supported file types for upload."""
+    return document_service.get_supported_file_types()
 
-# Health check
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "Stealth Legal AI"}
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/documents/stats")
+async def get_document_stats(db: Session = Depends(get_db)):
+    """Get document statistics and system information."""
+    return document_service.get_document_stats(db)
