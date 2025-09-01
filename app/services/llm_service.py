@@ -92,36 +92,38 @@ class LLMService:
         if not self.enabled:
             return self._fallback_analysis(content, start_time)
         
-        system_message = """You are an expert legal AI assistant specializing in contract analysis. Your role is to provide clear, structured, and actionable legal insights. 
+        system_message = """You are an expert legal AI assistant specializing in contract analysis. Your role is to provide clear, structured, and actionable legal insights.
 
 IMPORTANT: Structure your response as a JSON object with the following exact format:
 {
-  "key_terms": ["term1", "term2", "term3"],
-  "risks": ["risk1", "risk2", "risk3"],
-  "document_type": "specific document type",
-  "summary": "concise 2-3 sentence summary",
-  "recommendations": ["specific actionable recommendation 1", "specific actionable recommendation 2"]
+  "key_terms": ["specific term 1", "specific term 2", "specific term 3", "specific term 4", "specific term 5"],
+  "risks": ["specific risk 1", "specific risk 2", "specific risk 3", "specific risk 4"],
+  "document_type": "exact document type",
+  "summary": "concise 2-3 sentence summary of document purpose and key elements",
+  "recommendations": ["specific actionable recommendation 1", "specific actionable recommendation 2", "specific actionable recommendation 3"]
 }
 
 Guidelines:
-- Be specific and actionable in recommendations
-- Identify concrete legal risks, not generic ones
-- Use clear, professional language
-- Focus on practical legal implications
-- Keep summaries concise but comprehensive"""
+- Extract 5-8 MOST IMPORTANT and SPECIFIC legal terms from THIS document (not generic terms)
+- Identify 3-5 SPECIFIC legal risks or concerns found in THIS document
+- Determine the EXACT document type based on content analysis
+- Provide a concise summary specific to THIS document's purpose and key elements
+- Give 3-5 SPECIFIC, ACTIONABLE recommendations tailored to THIS document's content
+- Each term, risk, and recommendation must be UNIQUE and SPECIFIC to the document
+- Avoid generic responses - be specific to the actual content"""
         
         prompt = f"""Analyze this legal document and provide structured insights:
 
 {content[:4000]}
 
 Please provide a JSON response with:
-1. KEY TERMS: List 5-8 most important legal terms/clauses
-2. RISKS: Identify 3-5 specific legal risks or potential issues
-3. DOCUMENT TYPE: Classify the specific type of legal document
-4. SUMMARY: 2-3 sentence overview of the document's purpose and key provisions
-5. RECOMMENDATIONS: 3-5 specific, actionable recommendations for improvement
+1. KEY TERMS: List 5-8 most important legal terms/clauses SPECIFIC to this document (not generic terms)
+2. RISKS: Identify 3-5 specific legal risks or potential issues FOUND IN THIS DOCUMENT
+3. DOCUMENT TYPE: Classify the specific type of legal document based on its content
+4. SUMMARY: 2-3 sentence overview of THIS document's purpose and key provisions
+5. RECOMMENDATIONS: 3-5 specific, actionable recommendations tailored to THIS document's content
 
-Focus on practical legal implications and actionable insights."""
+CRITICAL: Each term, risk, and recommendation must be UNIQUE and SPECIFIC to this document. Avoid generic responses."""
         
         response = self._call_openai(prompt, system_message)
         
@@ -314,16 +316,26 @@ Respond with: "Most relevant documents: ID: [number], ID: [number], ID: [number]
         
         # Create specific recommendations based on content analysis
         recommendations = []
-        if not any(word in content.lower() for word in ["payment", "compensation", "fee"]):
-            recommendations.append("Add clear payment terms and compensation structure")
-        if not any(word in content.lower() for word in ["termination", "expiration", "end"]):
-            recommendations.append("Include termination clause with clear conditions")
-        if not any(word in content.lower() for word in ["liability", "indemnification", "damages"]):
-            recommendations.append("Add liability and indemnification provisions")
-        if not any(word in content.lower() for word in ["dispute", "arbitration", "mediation"]):
-            recommendations.append("Include dispute resolution mechanism")
+        content_lower = content.lower()
+        
+        if not any(word in content_lower for word in ["payment", "compensation", "fee", "rate"]):
+            recommendations.append("Add clear payment terms specifying amount, schedule, and method of payment")
+        if not any(word in content_lower for word in ["termination", "expiration", "end", "cancel"]):
+            recommendations.append("Include termination clause with specific conditions and notice requirements")
+        if not any(word in content_lower for word in ["liability", "indemnification", "damages", "responsibility"]):
+            recommendations.append("Add liability and indemnification provisions to protect both parties")
+        if not any(word in content_lower for word in ["dispute", "arbitration", "mediation", "resolution"]):
+            recommendations.append("Include dispute resolution mechanism with specific procedures")
+        if not any(word in content_lower for word in ["confidentiality", "privacy", "proprietary", "secret"]):
+            recommendations.append("Add confidentiality provisions to protect sensitive information")
+        if not any(word in content_lower for word in ["intellectual property", "copyright", "trademark", "patent"]):
+            recommendations.append("Include intellectual property rights and ownership clauses")
         if not recommendations:
-            recommendations = ["Consider legal review for compliance", "Ensure all terms are clearly defined"]
+            recommendations = [
+                "Consider adding force majeure clause for unforeseen circumstances",
+                "Include governing law and jurisdiction provisions",
+                "Add amendment procedures for future contract modifications"
+            ]
         
         return {
             "analysis": {
@@ -357,9 +369,9 @@ Respond with: "Most relevant documents: ID: [number], ID: [number], ID: [number]
             "terms": [
                 {
                     "term": term,
-                    "meaning": f"Important legal term found in {doc_type.lower()}",
-                    "context": "Document analysis",
-                    "implications": "Key for legal compliance and enforcement",
+                    "meaning": self._get_term_meaning(term, doc_type),
+                    "context": f"Found in {doc_type.lower()} document",
+                    "implications": self._get_term_implications(term),
                     "source": "rule_based"
                 } for term in key_terms[:5]  # Limit to top 5 terms
             ],
@@ -468,6 +480,52 @@ Respond with: "Most relevant documents: ID: [number], ID: [number], ID: [number]
         
         return "legal document"
     
+    def _get_term_meaning(self, term: str, doc_type: str) -> str:
+        """Get specific meaning for a legal term"""
+        term_lower = term.lower()
+        
+        if "payment" in term_lower or "compensation" in term_lower:
+            return "Financial compensation and payment structure"
+        elif "termination" in term_lower or "expiration" in term_lower:
+            return "Contract ending and termination procedures"
+        elif "liability" in term_lower or "responsibility" in term_lower:
+            return "Legal responsibility and risk allocation"
+        elif "confidentiality" in term_lower or "privacy" in term_lower:
+            return "Information protection and confidentiality obligations"
+        elif "indemnification" in term_lower or "indemnity" in term_lower:
+            return "Protection against legal claims and damages"
+        elif "intellectual property" in term_lower or "ip" in term_lower:
+            return "Intellectual property rights and ownership"
+        elif "dispute" in term_lower or "arbitration" in term_lower:
+            return "Dispute resolution and conflict management"
+        elif "governing law" in term_lower or "jurisdiction" in term_lower:
+            return "Legal framework and applicable laws"
+        else:
+            return f"Important legal concept in {doc_type.lower()}"
+    
+    def _get_term_implications(self, term: str) -> str:
+        """Get specific implications for a legal term"""
+        term_lower = term.lower()
+        
+        if "payment" in term_lower or "compensation" in term_lower:
+            return "Critical for financial obligations and dispute resolution"
+        elif "termination" in term_lower or "expiration" in term_lower:
+            return "Essential for legally ending the agreement"
+        elif "liability" in term_lower or "responsibility" in term_lower:
+            return "Protects parties from legal exposure and risk"
+        elif "confidentiality" in term_lower or "privacy" in term_lower:
+            return "Safeguards sensitive business and personal information"
+        elif "indemnification" in term_lower or "indemnity" in term_lower:
+            return "Risk transfer mechanism between contracting parties"
+        elif "intellectual property" in term_lower or "ip" in term_lower:
+            return "Defines ownership and usage rights of creative works"
+        elif "dispute" in term_lower or "arbitration" in term_lower:
+            return "Provides structured approach to resolving conflicts"
+        elif "governing law" in term_lower or "jurisdiction" in term_lower:
+            return "Determines which legal system applies to the contract"
+        else:
+            return "Important for legal compliance and enforcement"
+    
     # Response parsing methods
     def _parse_analysis_response(self, response: str, content: str, start_time: float) -> Dict[str, Any]:
         """Parse LLM analysis response"""
@@ -492,22 +550,44 @@ Respond with: "Most relevant documents: ID: [number], ID: [number], ID: [number]
                 
                 # Create structured suggestions from recommendations
                 suggestions = []
+                suggestion_types = ["clarity", "structure", "completeness", "risk_mitigation", "compliance"]
                 for i, rec in enumerate(recommendations):
+                    suggestion_type = suggestion_types[i % len(suggestion_types)]
                     suggestions.append({
-                        "type": "improvement",
+                        "type": suggestion_type,
                         "suggestion": rec,
-                        "example": f"Recommendation {i+1}",
+                        "example": f"Specific improvement for this document: {rec[:50]}...",
                         "source": "llm"
                     })
                 
-                # Create structured terms from key terms
+                # Create structured terms from key terms with specific meanings
                 terms = []
-                for term in key_terms:
+                for i, term in enumerate(key_terms):
+                    # Create specific meanings based on term content
+                    if "payment" in term.lower():
+                        meaning = "Payment terms and compensation structure"
+                        implications = "Critical for financial obligations and dispute resolution"
+                    elif "termination" in term.lower():
+                        meaning = "Contract termination and exit provisions"
+                        implications = "Essential for ending the agreement legally"
+                    elif "liability" in term.lower():
+                        meaning = "Legal responsibility and risk allocation"
+                        implications = "Protects parties from legal exposure"
+                    elif "confidentiality" in term.lower():
+                        meaning = "Information protection and privacy obligations"
+                        implications = "Safeguards sensitive business information"
+                    elif "indemnification" in term.lower():
+                        meaning = "Protection against legal claims and damages"
+                        implications = "Risk transfer mechanism between parties"
+                    else:
+                        meaning = f"Important legal concept: {term}"
+                        implications = "Key term for legal compliance and enforcement"
+                    
                     terms.append({
                         "term": term,
-                        "meaning": f"Key legal term identified in document",
-                        "context": "Document analysis",
-                        "implications": "Important for legal compliance",
+                        "meaning": meaning,
+                        "context": f"Found in {document_type.lower()}",
+                        "implications": implications,
                         "source": "llm"
                     })
                 

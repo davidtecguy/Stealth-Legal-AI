@@ -76,48 +76,46 @@ class SearchIndex:
                 del self.index[token][doc_id]
     
     def search(self, query: str, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
-        """Search for documents containing the query."""
+        """Simple search for documents containing the query word."""
         if not query.strip():
             return []
         
-        query_tokens = self._tokenize(query.lower())
-        if not query_tokens:
-            return []
-        
-        # Calculate relevance scores
-        doc_scores: Dict[int, float] = {}
-        doc_positions: Dict[int, List[int]] = {}
-        
-        for token in query_tokens:
-            if token in self.index:
-                for doc_id, positions in self.index[token].items():
-                    if doc_id not in doc_scores:
-                        doc_scores[doc_id] = 0.0
-                        doc_positions[doc_id] = []
-                    
-                    # Score based on frequency and position
-                    doc_scores[doc_id] += len(positions) * 0.5
-                    doc_positions[doc_id].extend(positions)
-        
-        # Sort by relevance score
-        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
-        
+        query_lower = query.lower().strip()
         results = []
-        for doc_id, score in sorted_docs[offset:offset + limit]:
-            if doc_id in self.documents:
-                doc = self.documents[doc_id]
-                context = self._get_context(doc['content'], doc_positions[doc_id], query)
+        
+        # Search through all documents
+        for doc_id, doc in self.documents.items():
+            content_lower = doc['content'].lower()
+            
+            # Check if query word exists in content
+            if query_lower in content_lower:
+                # Find all positions of the word
+                positions = []
+                start = 0
+                while True:
+                    pos = content_lower.find(query_lower, start)
+                    if pos == -1:
+                        break
+                    positions.append(pos)
+                    start = pos + 1
+                
+                # Get context snippets around matches
+                context = self._get_simple_context(doc['content'], positions, query_lower)
                 
                 results.append({
                     'id': doc_id,
                     'title': doc['title'],
                     'filename': doc.get('filename', ''),
                     'file_type': doc['file_type'],
-                    'relevance_score': score,
+                    'relevance_score': len(positions),  # Simple score based on number of matches
                     'context': context
                 })
         
-        return results
+        # Sort by number of matches (relevance score)
+        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        # Apply pagination
+        return results[offset:offset + limit]
     
     def _tokenize(self, text: str) -> List[str]:
         """Tokenize text into searchable terms."""
@@ -126,13 +124,13 @@ class SearchIndex:
         # Remove stop words and short tokens
         return [token for token in tokens if token not in self.stop_words and len(token) > 2]
     
-    def _get_context(self, content: str, positions: List[int], query: str, context_size: int = 100) -> List[str]:
-        """Get context snippets around matched positions."""
+    def _get_simple_context(self, content: str, positions: List[int], query: str, context_size: int = 100) -> List[str]:
+        """Get simple context snippets around matched positions."""
         if not positions:
             return []
         
         context_snippets = []
-        for pos in positions[:3]:  # Limit to first 3 matches
+        for pos in positions[:5]:  # Show up to 5 matches
             start = max(0, pos - context_size)
             end = min(len(content), pos + context_size)
             snippet = content[start:end]

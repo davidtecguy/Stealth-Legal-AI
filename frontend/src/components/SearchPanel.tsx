@@ -66,12 +66,13 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const highlightText = (text: string, query: string) => {
     if (!query) return text;
     
-    const regex = new RegExp(`(${query})`, 'gi');
+    // Simple highlighting - find and highlight the exact word
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
     
     return parts.map((part, index) => 
       regex.test(part) ? (
-        <mark key={index} className="bg-yellow-200 px-1 rounded">
+        <mark key={index} className="bg-yellow-300 px-1 rounded font-semibold">
           {part}
         </mark>
       ) : (
