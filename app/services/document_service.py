@@ -42,7 +42,8 @@ class DocumentService:
                 document.id, 
                 document.title, 
                 document.content, 
-                document.file_type
+                document.file_type,
+                document.filename
             )
         
         return document
@@ -78,7 +79,8 @@ class DocumentService:
                 document.id, 
                 document.title, 
                 document.content, 
-                document.file_type
+                document.file_type,
+                document.filename
             )
         
         db.commit()
@@ -197,7 +199,8 @@ class DocumentService:
                     document.id, 
                     document.title, 
                     document.content, 
-                    document.file_type
+                    document.file_type,
+                    document.filename
                 )
     
     def get_document_stats(self, db: Session) -> Dict[str, Any]:

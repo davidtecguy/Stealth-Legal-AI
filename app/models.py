@@ -44,12 +44,13 @@ class SearchIndex:
             'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'
         }
     
-    def add_document(self, doc_id: int, title: str, content: str, file_type: str):
+    def add_document(self, doc_id: int, title: str, content: str, file_type: str, filename: str = ""):
         """Add a document to the search index."""
         self.documents[doc_id] = {
             'title': title,
             'content': content,
-            'file_type': file_type
+            'file_type': file_type,
+            'filename': filename
         }
         
         # Tokenize and index content
@@ -107,6 +108,7 @@ class SearchIndex:
                 results.append({
                     'id': doc_id,
                     'title': doc['title'],
+                    'filename': doc.get('filename', ''),
                     'file_type': doc['file_type'],
                     'relevance_score': score,
                     'context': context
