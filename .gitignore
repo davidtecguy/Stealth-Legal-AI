@@ -70,6 +70,7 @@ frontend/build/
 frontend/dist/
 frontend/.next/
 frontend/out/
+frontend/node_modules/
 
 # IDE and Editor
 .vscode/
