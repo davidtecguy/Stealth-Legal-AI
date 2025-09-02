@@ -20,7 +20,7 @@ class Document(Base):
     file_size = Column(Integer, nullable=False)  # File size in bytes
     content = Column(Text, nullable=True)  # Extracted text content (nullable for large files)
     content_hash = Column(String(64), nullable=True)  # Hash of content for change detection
-    etag = Column(String(64), nullable=False, unique=True)
+    etag = Column(String(64), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
